@@ -1,0 +1,14 @@
+# Visual Studio / MSBuild
+.vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.user
+*.aps
+*.pdb
+*.ilk
+*.obj
+
+# vcpkg manifest 설치 산출물 (vcpkg.json으로 재현 가능하므로 커밋 제외)
+vcpkg_installed/

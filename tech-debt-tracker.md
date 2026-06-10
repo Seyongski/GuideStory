@@ -7,16 +7,17 @@
 
 | ID | 부채 | 위치 | 영향 | 이유(미상환) | 상환 트리거 | 심각도 |
 |----|------|------|------|--------------|-------------|--------|
-| D-001 | 빌드/실행 절차 미문서화 | ARCHITECTURE.md §6 | 온보딩 지연 | SDL2 링크 미설정 상태 | 첫 빌드 성공 시 | 중 |
-| D-002 | vcxproj에 C++20 표준(`LanguageStandard=stdcpp20`) 미설정 | GuideStory.vcxproj | C++20 기능 사용 불가 | 초기 셋업 단계 | 첫 코드 작성 전 | 상 |
-| D-003 | SDL2 / WinSock 링크·의존성 미설정 | GuideStory.vcxproj | 빌드 불가 | 아직 소스 없음 | 1단계 SDL2 통합 시 | 상 |
-| D-004 | `src/` 소스 디렉터리·모듈 골격 없음 | GuideStory/ | 구조 미정 | 프로젝트 시작 직전 | 1단계 착수 시 | 중 |
+| D-005 | WinSock 링크 미설정 | GuideStory.vcxproj | 3단계 빌드 불가 | 3단계 전까지 불필요 | net 모듈 착수 시(`ws2_32.lib`) | 하 |
+| D-006 | Win32(x86) 구성은 SDL2 미연결 | GuideStory.vcxproj | x86 빌드 불가 | x64만 타깃 | x86 지원 필요 시(x86-windows 트리플릿) | 하 |
 
 ## 2. 상환 완료 (Resolved)
 
 | ID | 부채 | 상환일 | 방법 |
 |----|------|--------|------|
-|    |      |        |      |
+| D-002 | C++20 미설정 | 2026-06-10 | vcxproj 전 구성 `LanguageStandard=stdcpp20` 설정 |
+| D-003 | SDL2 링크 미설정 | 2026-06-10 | vcpkg 매니페스트(vcpkg.json)로 SDL2 2.32.10 통합, x64 include/lib/DLL 연결 |
+| D-004 | src 골격 없음 | 2026-06-10 | `src/{core,math,platform,ecs,physics,ai,data,net}` 생성 |
+| D-001 | 빌드/실행 절차 미문서화 | 2026-06-10 | ARCHITECTURE.md §6에 vcpkg 복원→빌드→실행 절차 기록, 빌드/실행 검증 |
 
 ## 3. 심각도 기준
 

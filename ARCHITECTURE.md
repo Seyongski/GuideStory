@@ -124,22 +124,37 @@ GuideStory/
 | ID | 증명 과제 | 산출물 | 상태 |
 |----|-----------|--------|------|
 | ADR-001 | IOCP/Select 비교 + N명 동기화 검증 | 비교표, 검증 로그 | ☐ 미착수 |
-| ADR-002 | Custom Deleter RAII 래핑 기록 | 코드 + 회고 | ☐ 미착수 |
+| ADR-002 | Custom Deleter RAII 래핑 기록 | 코드 + 회고 | ◐ 진행 중 (SDLWindow/SDLRenderDevice 적용, 회고 미작성) |
 | ADR-003 | 상속→컴포넌트 전환 장단점 비교 | 비교 문서 | ☐ 미착수 |
 | ADR-004 | 브루트포스 vs QuadTree 벤치마크 | ms/CPU 데이터, 한계 분석 | ☐ 미착수 |
 | ADR-005 | 파싱 예외 처리 + 장단점 | 코드 + 회고 | ☐ 미착수 |
-| ADR-006 | SDL 디커플링 결합도 분석 | 결합/디커플 비교 보고 | ☐ 미착수 |
+| ADR-006 | SDL 디커플링 결합도 분석 | 결합/디커플 비교 보고 | ◐ 진행 중 (Vector2D/Rect + IWindow/IRenderDevice 인터페이스 적용, 분석 미작성) |
 | ADR-007 | C++↔Python 통신/추론 통합 | 지연 측정, 통합 기록 | ☐ 미착수 |
 
 상태 표기: ☐ 미착수 · ◐ 진행 중 · ☑ 완료(코드+문서)
 
 ## 6. 빌드 & 실행
 
+**의존성**: SDL2는 vcpkg **매니페스트 모드**(`GuideStory/vcpkg.json`)로 관리한다.
+빌드 전 의존성 복원이 필요하다(최초 1회, SDL2를 소스 빌드하므로 수 분 소요).
+
 ```powershell
-# (TODO: SDL2 링크 설정 후 실제 명령으로 교체)
-msbuild GuideStory.sln /p:Configuration=Debug /p:Platform=x64
+# 1) SDL2 복원 (최초 1회) — VS 번들 vcpkg 사용
+$vcpkg = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg\vcpkg.exe"
+$root  = "$PSScriptRoot\GuideStory"   # vcpkg.json 위치
+& $vcpkg install --triplet x64-windows --x-manifest-root=$root --x-install-root="$root\vcpkg_installed"
+
+# 2) 빌드 (x64 전용 — Win32은 미지원, tech-debt D-006)
+$msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+& $msbuild GuideStory.sln /p:Configuration=Debug /p:Platform=x64
+
+# 3) 실행 → 1280x720 빈 윈도우(하늘색). ESC 또는 창 닫기로 종료.
+.\x64\Debug\GuideStory.exe
 ```
-- 현재 소스 파일 없음, SDL2/WinSock 링크 미설정 → [tech-debt-tracker.md](tech-debt-tracker.md) 참조.
+
+- SDL2 버전: 2.32.10 (x64-windows). 산출물 `vcpkg_installed/`는 `.gitignore` 제외(매니페스트로 재현).
+- DLL은 PostBuildEvent가 출력 폴더로 자동 복사(Debug: `SDL2d.dll`).
+- WinSock 링크는 3단계 net 모듈 착수 시 추가 → [tech-debt-tracker.md](tech-debt-tracker.md) D-005.
 
 ## 7. 관련 문서
 
