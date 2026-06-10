@@ -1,5 +1,7 @@
 #pragma once
 
+#include "platform/Input.h"
+
 namespace gs::platform {
 
 // ADR-006: 창/이벤트 처리를 인터페이스 뒤로 숨겨 SDL2를 격리한다.
@@ -8,11 +10,14 @@ class IWindow {
 public:
     virtual ~IWindow() = default;
 
-    // 윈도우 이벤트 펌프(입력/종료 등)를 처리한다.
+    // 윈도우 이벤트 펌프(입력/종료 등)를 처리하고 입력 스냅샷을 갱신한다.
     virtual void PollEvents() = 0;
 
     // 사용자가 창을 닫으려 했는지 여부.
     virtual bool ShouldClose() const = 0;
+
+    // 직전 PollEvents 시점의 입력 스냅샷.
+    virtual const Input& GetInput() const = 0;
 };
 
 } // namespace gs::platform

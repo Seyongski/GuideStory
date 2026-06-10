@@ -21,6 +21,7 @@ public:
 
     void PollEvents() override;
     bool ShouldClose() const override;
+    const Input& GetInput() const override { return m_input; }
 
     // 동일 platform 계층 내부(예: SDLRenderDevice)에서만 사용하는 네이티브 핸들 접근자.
     SDL_Window* Native() const { return m_window.get(); }
@@ -31,6 +32,7 @@ private:
 
     WindowPtr m_window;
     bool m_shouldClose = false;
+    Input m_input;
 };
 
 } // namespace gs::platform

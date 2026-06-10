@@ -20,6 +20,9 @@ public:
     SDLRenderDevice& operator=(const SDLRenderDevice&) = delete;
 
     void Clear(const Color& color) override;
+    void FillRect(const math::Rect& rect, const Color& color) override;
+    void DrawRect(const math::Rect& rect, const Color& color) override;
+    void DrawLine(const math::Vector2D& a, const math::Vector2D& b, const Color& color) override;
     void Present() override;
 
 private:

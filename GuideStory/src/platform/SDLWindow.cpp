@@ -37,15 +37,44 @@ SDLWindow::~SDLWindow() {
 }
 
 void SDLWindow::PollEvents() {
+    m_input.BeginFrame(); // 현재 입력을 이전 프레임으로 이월 (엣지 검출용)
+
+    // 이벤트 펌프: 종료 신호 + SDL 내부 키/마우스 상태 갱신.
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) {
             m_shouldClose = true;
         }
-        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-            m_shouldClose = true;
-        }
     }
+
+    // 키보드: 이벤트 누락 없이 hold 상태를 일괄 조회한다.
+    const Uint8* ks = SDL_GetKeyboardState(nullptr);
+    auto k = [&](Key key, SDL_Scancode sc) { m_input.SetKey(key, ks[sc] != 0); };
+    k(Key::Left, SDL_SCANCODE_LEFT);   k(Key::Right, SDL_SCANCODE_RIGHT);
+    k(Key::Up,   SDL_SCANCODE_UP);     k(Key::Down,  SDL_SCANCODE_DOWN);
+    k(Key::Space,SDL_SCANCODE_SPACE);
+    k(Key::LCtrl,SDL_SCANCODE_LCTRL);  k(Key::LAlt,  SDL_SCANCODE_LALT);
+    k(Key::LShift,SDL_SCANCODE_LSHIFT);
+    k(Key::Tab,  SDL_SCANCODE_TAB);    k(Key::Enter, SDL_SCANCODE_RETURN);
+    k(Key::Escape,SDL_SCANCODE_ESCAPE);
+    k(Key::S, SDL_SCANCODE_S); k(Key::L, SDL_SCANCODE_L); k(Key::F, SDL_SCANCODE_F);
+    k(Key::E, SDL_SCANCODE_E); k(Key::R, SDL_SCANCODE_R); k(Key::G, SDL_SCANCODE_G);
+    k(Key::D, SDL_SCANCODE_D);
+    k(Key::Num1, SDL_SCANCODE_1); k(Key::Num2, SDL_SCANCODE_2); k(Key::Num3, SDL_SCANCODE_3);
+    k(Key::Num4, SDL_SCANCODE_4); k(Key::Num5, SDL_SCANCODE_5); k(Key::Num6, SDL_SCANCODE_6);
+    k(Key::Num7, SDL_SCANCODE_7); k(Key::Num8, SDL_SCANCODE_8); k(Key::Num9, SDL_SCANCODE_9);
+
+    if (m_input.IsDown(Key::Escape)) {
+        m_shouldClose = true; // ESC 종료 (기존 동작 유지)
+    }
+
+    // 마우스: 화면 좌표 + 버튼 상태.
+    int mx = 0, my = 0;
+    const Uint32 mb = SDL_GetMouseState(&mx, &my);
+    m_input.SetMousePos(static_cast<float>(mx), static_cast<float>(my));
+    m_input.SetMouseButton(MouseButton::Left,   (mb & SDL_BUTTON(SDL_BUTTON_LEFT))   != 0);
+    m_input.SetMouseButton(MouseButton::Right,  (mb & SDL_BUTTON(SDL_BUTTON_RIGHT))  != 0);
+    m_input.SetMouseButton(MouseButton::Middle, (mb & SDL_BUTTON(SDL_BUTTON_MIDDLE)) != 0);
 }
 
 bool SDLWindow::ShouldClose() const {

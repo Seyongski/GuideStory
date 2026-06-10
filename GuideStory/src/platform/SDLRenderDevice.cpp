@@ -21,6 +21,9 @@ SDLRenderDevice::SDLRenderDevice(SDLWindow& window)
     }
 
     m_renderer.reset(raw);
+
+    // 알파 블렌딩 활성화 — 반투명 디버그 오버레이/그리드용.
+    SDL_SetRenderDrawBlendMode(m_renderer.get(), SDL_BLENDMODE_BLEND);
 }
 
 SDLRenderDevice::~SDLRenderDevice() = default; // RAII가 SDL_DestroyRenderer 호출
@@ -28,6 +31,23 @@ SDLRenderDevice::~SDLRenderDevice() = default; // RAII가 SDL_DestroyRenderer �
 void SDLRenderDevice::Clear(const Color& color) {
     SDL_SetRenderDrawColor(m_renderer.get(), color.r, color.g, color.b, color.a);
     SDL_RenderClear(m_renderer.get());
+}
+
+void SDLRenderDevice::FillRect(const math::Rect& rect, const Color& color) {
+    SDL_SetRenderDrawColor(m_renderer.get(), color.r, color.g, color.b, color.a);
+    const SDL_FRect r{rect.x, rect.y, rect.w, rect.h};
+    SDL_RenderFillRectF(m_renderer.get(), &r);
+}
+
+void SDLRenderDevice::DrawRect(const math::Rect& rect, const Color& color) {
+    SDL_SetRenderDrawColor(m_renderer.get(), color.r, color.g, color.b, color.a);
+    const SDL_FRect r{rect.x, rect.y, rect.w, rect.h};
+    SDL_RenderDrawRectF(m_renderer.get(), &r);
+}
+
+void SDLRenderDevice::DrawLine(const math::Vector2D& a, const math::Vector2D& b, const Color& color) {
+    SDL_SetRenderDrawColor(m_renderer.get(), color.r, color.g, color.b, color.a);
+    SDL_RenderDrawLineF(m_renderer.get(), a.x, a.y, b.x, b.y);
 }
 
 void SDLRenderDevice::Present() {

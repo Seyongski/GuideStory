@@ -149,16 +149,28 @@
     <ClCompile Include="src\core\Game.cpp" />
     <ClCompile Include="src\platform\SDLWindow.cpp" />
     <ClCompile Include="src\platform\SDLRenderDevice.cpp" />
+    <ClCompile Include="src\world\FootholdMap.cpp" />
+    <ClCompile Include="src\world\Map.cpp" />
+    <ClCompile Include="src\physics\PlatformerController.cpp" />
+    <ClCompile Include="src\editor\MapEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\Game.h" />
     <ClInclude Include="src\math\Vector2D.h" />
     <ClInclude Include="src\math\Rect.h" />
     <ClInclude Include="src\platform\Color.h" />
+    <ClInclude Include="src\platform\Input.h" />
     <ClInclude Include="src\platform\IWindow.h" />
     <ClInclude Include="src\platform\IRenderDevice.h" />
     <ClInclude Include="src\platform\SDLWindow.h" />
     <ClInclude Include="src\platform\SDLRenderDevice.h" />
+    <ClInclude Include="src\world\Foothold.h" />
+    <ClInclude Include="src\world\FootholdMap.h" />
+    <ClInclude Include="src\world\TileMap.h" />
+    <ClInclude Include="src\world\Map.h" />
+    <ClInclude Include="src\physics\PlatformerController.h" />
+    <ClInclude Include="src\core\Camera.h" />
+    <ClInclude Include="src\editor\MapEditor.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
