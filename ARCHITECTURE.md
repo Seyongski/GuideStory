@@ -43,19 +43,27 @@
 
 ```
 GuideStory/
-├─ GuideStory.sln
-└─ GuideStory/
-   ├─ GuideStory.vcxproj
-   └─ src/                         (TODO — 아직 소스 없음)
-      ├─ core/        # 게임 루프, 시간, 상태 전이
-      ├─ math/        # Vector2D, Rect (SDL 비의존 — ADR-006)
-      ├─ platform/    # RenderDevice / Window 인터페이스 (+ SDL2 구현)
-      ├─ ecs/         # 컴포넌트 기반 게임 오브젝트 (ADR-003)
-      ├─ physics/     # AABB, QuadTree (ADR-004)
-      ├─ ai/          # 몬스터 FSM, libtorch 추론 브리지 (ADR-007)
-      ├─ data/        # DataManager: JSON/CSV 로드·캐싱 (ADR-005)
-      └─ net/         # WinSock 패킷·세션·서버 루프 (ADR-001)
+├─ GuideStory.sln                  # 3 프로젝트 (ADR-009)
+├─ GuideStory/                     # ▶ GuideStoryEngine (정적 라이브러리)
+│  ├─ GuideStory.vcxproj
+│  └─ src/
+│     ├─ core/        # 카메라, 월드 렌더(RenderWorld) 등 공용 (SDL 비의존)
+│     ├─ math/        # Vector2D, Rect (SDL 비의존 — ADR-006)
+│     ├─ platform/    # RenderDevice / Window 인터페이스 (+ SDL2 구현)
+│     ├─ world/       # TileMap·Foothold·Map·MapScaffold (ADR-008)
+│     ├─ editor/      # MapEditor (편집 로직)
+│     ├─ ecs/         # 컴포넌트 기반 게임 오브젝트 (ADR-003)
+│     ├─ physics/     # PlatformerController; AABB, QuadTree (ADR-004)
+│     ├─ ai/          # 몬스터 FSM, libtorch 추론 브리지 (ADR-007)
+│     ├─ data/        # DataManager: JSON/CSV 로드·캐싱 (ADR-005)
+│     └─ net/         # WinSock 패킷·세션·서버 루프 (ADR-001)
+├─ GuideStoryEditor/               # ▶ GuideStoryEditor.exe (편집·저장)
+│  └─ main.cpp + EditorApp.{h,cpp}
+└─ GuideStoryGame/                 # ▶ GuideStoryGame.exe (맵 로드·플레이)
+   └─ main.cpp + GameApp.{h,cpp}
 ```
+> 엔진 라이브러리는 `main`/호스트 루프를 갖지 않는다. 두 앱이 각자 합성 루트(`main`)에서
+> `SDLWindow`/`SDLRenderDevice`를 생성해 `EditorApp`/`GameApp`에 주입한다 (ADR-009).
 
 | 모듈 | 책임 | SDL 의존 | 관련 ADR |
 |------|------|----------|----------|
@@ -126,6 +134,12 @@ GuideStory/
 
 > **모듈 추가**: `world/`(TileMap·Foothold·FootholdMap·Map), `editor/`(MapEditor), `core/Camera`. 입력은 `platform/Input`으로 SDL과 디커플(ADR-006). 물리는 `MoveIntent` 추상 입력만 받아 platform과도 분리.
 
+### ADR-009 — 에디터/런타임 실행파일 분리 (공통 엔진 정적 라이브러리)
+- **결정**: 편집과 플레이를 **두 개의 실행파일**로 분리한다. `GuideStoryEngine`(정적 라이브러리)이 공통 코드(math/platform/world/physics/core/editor)를 담고, `GuideStoryEditor.exe`(편집·저장)와 `GuideStoryGame.exe`(맵 파일 로드·플레이)가 각자 `main` + 호스트 루프를 갖는다. 두 앱은 라이브러리를 통해 `SDLWindow`/`SDLRenderDevice`를 공유한다. 월드 렌더(`core::RenderWorld`)와 기본 맵 빌더(`world::BuildDefaultMap`)는 라이브러리로 추출해 중복을 제거했다.
+- **이유**: 런타임 빌드에 편집 UI/툴 코드를 포함하지 않는다(관심사 분리·배포 표면 축소). 에디터는 추후 몬스터/스킬 배치 등 "변경 가능한 리소스" 편집의 home이 된다. 데이터(맵 파일)가 두 프로그램의 유일한 계약이 되어 데이터 주도(ADR-005)와 정렬된다.
+- **트레이드오프**: 솔루션이 1→3 프로젝트로 늘고 빌드 설정(SDL include/lib, DLL 복사, vcpkg 매니페스트 경로 참조)이 앱마다 중복된다. 공통 호스트 루프 코드(타이밍·dt 클램프)가 두 앱에 약간 중복된다.
+- **증명 과제**: 런타임 바이너리가 에디터 코드에 의존하지 않음을 보장. 데이터 파일만으로 에디터↔게임이 연결됨을 검증(에디터 저장 → 게임 로드).
+
 ## 5. 증명 과제 대시보드 (지침 지표 추적)
 
 > 이 프로젝트 "성공"의 척도. 각 항목은 코드 + **분석 문서/벤치마크**가 모두 있어야 완료.
@@ -140,6 +154,7 @@ GuideStory/
 | ADR-006 | SDL 디커플링 결합도 분석 | 결합/디커플 비교 보고 | ◐ 진행 중 (Vector2D/Rect + IWindow/IRenderDevice 인터페이스 적용, 분석 미작성) |
 | ADR-007 | C++↔Python 통신/추론 통합 | 지연 측정, 통합 기록 | ☐ 미착수 |
 | ADR-008 | 풋홀드 충돌 + 인덱스 맵/아틀라스 메모리 비교 | 코드 + 용량/드로우콜 분석 | ◐ 진행 중 (풋홀드·인덱스맵·에디터 구현, 아틀라스·벤치 미작성) |
+| ADR-009 | 에디터/런타임 실행파일 분리 + 공통 엔진 라이브러리 | 3-프로젝트 구조, 데이터 계약 검증 | ◐ 진행 중 (엔진 lib + 에디터/게임 exe 분리, 빌드·기동·맵 로드 검증 완료) |
 
 상태 표기: ☐ 미착수 · ◐ 진행 중 · ☑ 완료(코드+문서)
 
@@ -155,11 +170,15 @@ $root  = "$PSScriptRoot\GuideStory"   # vcpkg.json 위치
 & $vcpkg install --triplet x64-windows --x-manifest-root=$root --x-install-root="$root\vcpkg_installed"
 
 # 2) 빌드 (x64 전용 — Win32은 미지원, tech-debt D-006)
+#    솔루션 전체를 빌드하면 엔진 라이브러리 → 에디터/게임 순으로 빌드된다.
 $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
 & $msbuild GuideStory.sln /p:Configuration=Debug /p:Platform=x64
 
-# 3) 실행 → 1280x720 빈 윈도우(하늘색). ESC 또는 창 닫기로 종료.
-.\x64\Debug\GuideStory.exe
+# 3) 실행 (두 실행파일은 같은 출력 폴더 x64\Debug 를 공유 → 맵 파일·DLL 공용)
+#    에디터: 타일/풋홀드 편집, S로 field01.gsmap 저장
+.\x64\Debug\GuideStoryEditor.exe
+#    게임: field01.gsmap 로드 후 플레이(없으면 기본 맵으로 폴백)
+.\x64\Debug\GuideStoryGame.exe
 ```
 
 - SDL2 버전: 2.32.10 (x64-windows). 산출물 `vcpkg_installed/`는 `.gitignore` 제외(매니페스트로 재현).

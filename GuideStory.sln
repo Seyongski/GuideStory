@@ -1,9 +1,13 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37111.16 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GuideStory", "GuideStory\GuideStory.vcxproj", "{6125DA70-ED2A-424C-9219-DF1F0AAD615C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GuideStoryEngine", "GuideStory\GuideStory.vcxproj", "{6125DA70-ED2A-424C-9219-DF1F0AAD615C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GuideStoryEditor", "GuideStoryEditor\GuideStoryEditor.vcxproj", "{BAD13087-152B-446E-B0FB-DD5D3AAC179F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GuideStoryGame", "GuideStoryGame\GuideStoryGame.vcxproj", "{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +25,18 @@ Global
 		{6125DA70-ED2A-424C-9219-DF1F0AAD615C}.Release|x64.Build.0 = Release|x64
 		{6125DA70-ED2A-424C-9219-DF1F0AAD615C}.Release|x86.ActiveCfg = Release|Win32
 		{6125DA70-ED2A-424C-9219-DF1F0AAD615C}.Release|x86.Build.0 = Release|Win32
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Debug|x64.ActiveCfg = Debug|x64
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Debug|x64.Build.0 = Debug|x64
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Debug|x86.ActiveCfg = Debug|Win32
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Release|x64.ActiveCfg = Release|x64
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Release|x64.Build.0 = Release|x64
+		{BAD13087-152B-446E-B0FB-DD5D3AAC179F}.Release|x86.ActiveCfg = Release|Win32
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Debug|x64.ActiveCfg = Debug|x64
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Debug|x64.Build.0 = Debug|x64
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Debug|x86.ActiveCfg = Debug|Win32
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Release|x64.ActiveCfg = Release|x64
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Release|x64.Build.0 = Release|x64
+		{A6AECBC2-A6CF-4BE0-ABB3-79537056F3CD}.Release|x86.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
