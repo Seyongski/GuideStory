@@ -2,7 +2,7 @@
 // 여기서만 구체 SDL 구현(SDLWindow/SDLRenderDevice)을 생성하고, 게임 로직에는 인터페이스로 주입한다.
 // SDL은 SDL_main으로 main을 재정의하므로 인자 시그니처를 맞춘다.
 
-#include "GameApp.h"
+#include "App.h"
 
 #include "platform/SDLRenderDevice.h"
 #include "platform/SDLWindow.h"
@@ -17,8 +17,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
         gs::platform::SDLWindow window("GuideStory", 1280, 720);
         gs::platform::SDLRenderDevice renderer(window);
 
-        gs::app::GameApp game(window, renderer);
-        game.Run();
+        gs::app::App app(window, renderer);
+        app.Run();
     }
     catch (const std::exception& e) {
         std::fprintf(stderr, "치명적 오류: %s\n", e.what());

@@ -4,6 +4,7 @@
   "description": "2D 사이드스크롤링 플랫포머 RPG 엔진 (메이플스토리 콘텐츠 프로그래밍 직무 포트폴리오)",
   "builtin-baseline": "32305df7d0b9a308e6ac454dd98ebfe550342c09",
   "dependencies": [
-    "sdl2"
+    "sdl2",
+    "sdl2-ttf"
   ]
 }

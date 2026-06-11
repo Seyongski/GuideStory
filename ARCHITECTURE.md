@@ -11,7 +11,7 @@
 | IDE / 툴셋 | Visual Studio 2022 (v143) | `GuideStory.sln` |
 | 언어 표준 | **C++20** | ⚠️ vcxproj에 `LanguageStandard` 미설정 — [tech-debt-tracker.md](tech-debt-tracker.md) D-002 |
 | 플랫폼 | Win32 / x64 (Console) | 서버·AI는 x64 권장 |
-| 클라이언트 그래픽 | SDL2 | 추상화 레이어 뒤로 격리 (ADR-006) |
+| 클라이언트 그래픽 | SDL2 (+ SDL2_ttf) | 추상화 레이어 뒤로 격리 (ADR-006). 텍스트는 `IRenderDevice::DrawText`로 은닉, 구현만 SDL_ttf |
 | 네트워크 | WinSock (IOCP / Select) | 데디케이트 서버 (ADR-001) |
 | AI 학습/추론 | Python(학습) + libtorch(C++ 추론) | ADR-007 |
 | C++ ↔ Python | ZMQ 또는 Socket | ADR-007 |
@@ -60,7 +60,9 @@ GuideStory/
 ├─ GuideStoryEditor/               # ▶ GuideStoryEditor.exe (편집·저장)
 │  └─ main.cpp + EditorApp.{h,cpp}
 └─ GuideStoryGame/                 # ▶ GuideStoryGame.exe (맵 로드·플레이)
-   └─ main.cpp + GameApp.{h,cpp}
+   └─ main.cpp + App(호스트 루프) + Screen(장면 인터페이스)
+      + LoginScreen / MainMenuScreen / GameScreen + Ui(메뉴 위젯)
+      # 장면 흐름: 로그인창 → 메인화면(게임시작/환경설정/로그아웃/게임종료) → 인게임
 ```
 > 엔진 라이브러리는 `main`/호스트 루프를 갖지 않는다. 두 앱이 각자 합성 루트(`main`)에서
 > `SDLWindow`/`SDLRenderDevice`를 생성해 `EditorApp`/`GameApp`에 주입한다 (ADR-009).
