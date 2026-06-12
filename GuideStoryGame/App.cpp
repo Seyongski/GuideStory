@@ -36,7 +36,10 @@ void App::Run() {
         prev = now;
         if (dt > 0.05f) dt = 0.05f; // 스파이크 클램프
 
-        const SceneId next = m_screen->Update(m_window.GetInput(), dt);
+        const platform::Input& in = m_window.GetInput();
+        if (in.WasPressed(platform::Key::Escape)) break; // ESC = 앱 종료(전역)
+
+        const SceneId next = m_screen->Update(in, dt);
         if (next == SceneId::Quit) break;               // 게임종료
         if (next != SceneId::Stay) {                     // 장면 전환
             m_screen = MakeScreen(next);

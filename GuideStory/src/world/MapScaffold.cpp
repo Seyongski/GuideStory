@@ -6,6 +6,8 @@ void BuildDefaultMap(Map& map) {
     auto& tm = map.Tiles();
     tm.Resize(80, 40, 32); // 80x40 칸, 32px
 
+    map.SetSpawn({200.0f, 560.0f}); // 바닥(y=640) 위 — 떨어지며 착지
+
     // 바닥 한 줄(시각용 흙 타일, 20행 = y 640).
     for (int x = 0; x < 50; ++x) tm.Set(x, 20, 1);
     for (int x = 22; x < 32; ++x) tm.Set(x, 15, 2); // 공중 발판(풀)

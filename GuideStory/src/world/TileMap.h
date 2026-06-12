@@ -2,6 +2,7 @@
 
 #include "math/Rect.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,20 @@ public:
         m_height = height;
         m_tileSize = tileSize;
         m_tiles.assign(static_cast<std::size_t>(width) * height, kEmptyTile);
+    }
+
+    // 폭/높이만 변경하되 겹치는 칸의 타일은 보존한다(에디터 리사이즈용). 타일크기는 유지.
+    void SetSize(int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        std::vector<TileId> next(static_cast<std::size_t>(width) * height, kEmptyTile);
+        const int copyW = std::min(width, m_width);
+        const int copyH = std::min(height, m_height);
+        for (int y = 0; y < copyH; ++y)
+            for (int x = 0; x < copyW; ++x)
+                next[static_cast<std::size_t>(y) * width + x] = m_tiles[Index(x, y)];
+        m_width = width;
+        m_height = height;
+        m_tiles = std::move(next);
     }
 
     int Width()    const { return m_width; }

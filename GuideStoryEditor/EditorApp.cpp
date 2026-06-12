@@ -35,8 +35,15 @@ void EditorApp::Run() {
         prev = now;
         if (dt > 0.05f) dt = 0.05f; // 스파이크 클램프
 
+        // ESC: 텍스트 입력 중이면 에디터가 취소로 소비, 아니면 에디터 종료.
+        const platform::Input& in = m_window.GetInput();
+        const bool esc = in.WasPressed(platform::Key::Escape);
+        const bool typing = m_editor.IsTextActive();
+
         Update(dt);
         Render();
+
+        if (esc && !typing) break;
     }
 }
 

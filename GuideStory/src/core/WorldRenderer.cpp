@@ -39,6 +39,20 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
         const math::Vector2D b = cam.WorldToScreen(fh.p2);
         r.DrawLine(a, b, {60, 220, 90, 255});
     }
+
+    // 포탈 — 문 모양 사각형(pos = 바닥 중심). 연결 여부로 색 구분.
+    for (const auto& p : map.Portals()) {
+        const math::Rect sr = cam.WorldRectToScreen(PortalBox(p.pos));
+        const platform::Color fill = p.targetMap.empty()
+            ? platform::Color{150, 90, 180, 130}   // 미연결 = 흐린 보라
+            : platform::Color{120, 200, 220, 150};  // 연결됨 = 청록
+        r.FillRect(sr, fill);
+        r.DrawRect(sr, {235, 235, 255, 255});
+    }
+
+    // 월드 경계 — 무한맵 느낌 해소용 외곽선.
+    const math::Rect wb = cam.WorldRectToScreen(map.WorldBounds());
+    r.DrawRect(wb, {255, 230, 120, 200});
 }
 
 } // namespace gs::core

@@ -3,6 +3,8 @@
 #include "math/Rect.h"
 #include "math/Vector2D.h"
 
+#include <algorithm>
+
 namespace gs::core {
 
 // 월드 좌표 ↔ 화면(픽셀) 좌표 변환. 렌더 디바이스는 화면 좌표만 받으므로
@@ -13,6 +15,17 @@ public:
 
     void Follow(math::Vector2D target) { m_center = target; }
     void Move(math::Vector2D delta)    { m_center += delta; } // 에디터 패닝
+
+    // 뷰가 월드 경계 밖으로 나가지 않게 center를 보정한다(무한맵 느낌 해소).
+    // 월드가 뷰보다 작은 축은 월드 중앙에 고정.
+    void ClampToBounds(const math::Rect& world) {
+        const float halfW = m_viewW * 0.5f;
+        const float halfH = m_viewH * 0.5f;
+        if (world.w <= m_viewW) m_center.x = world.x + world.w * 0.5f;
+        else m_center.x = std::clamp(m_center.x, world.Left() + halfW, world.Right() - halfW);
+        if (world.h <= m_viewH) m_center.y = world.y + world.h * 0.5f;
+        else m_center.y = std::clamp(m_center.y, world.Top() + halfH, world.Bottom() - halfH);
+    }
 
     math::Vector2D Center() const { return m_center; }
     float ViewW() const { return m_viewW; }

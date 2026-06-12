@@ -27,6 +27,9 @@ SDLWindow::SDLWindow(const std::string& title, int width, int height)
 
     // 소유권을 스마트 포인터로 이전 — 이 시점 이후 누수/이중 해제는 RAII가 막는다.
     m_window.reset(raw);
+
+    // 텍스트 입력(에디터 필드)용 SDL_TEXTINPUT 이벤트를 켠다. 키 상태 폴링과 공존한다.
+    SDL_StartTextInput();
 }
 
 SDLWindow::~SDLWindow() {
@@ -44,6 +47,8 @@ void SDLWindow::PollEvents() {
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) {
             m_shouldClose = true;
+        } else if (e.type == SDL_TEXTINPUT) {
+            m_input.AppendText(e.text.text); // 타이핑된 문자(레이아웃/Shift 반영)
         }
     }
 
@@ -56,17 +61,16 @@ void SDLWindow::PollEvents() {
     k(Key::LCtrl,SDL_SCANCODE_LCTRL);  k(Key::LAlt,  SDL_SCANCODE_LALT);
     k(Key::LShift,SDL_SCANCODE_LSHIFT);
     k(Key::Tab,  SDL_SCANCODE_TAB);    k(Key::Enter, SDL_SCANCODE_RETURN);
-    k(Key::Escape,SDL_SCANCODE_ESCAPE);
+    k(Key::Escape,SDL_SCANCODE_ESCAPE); k(Key::Backspace, SDL_SCANCODE_BACKSPACE);
     k(Key::S, SDL_SCANCODE_S); k(Key::L, SDL_SCANCODE_L); k(Key::F, SDL_SCANCODE_F);
     k(Key::E, SDL_SCANCODE_E); k(Key::R, SDL_SCANCODE_R); k(Key::G, SDL_SCANCODE_G);
-    k(Key::D, SDL_SCANCODE_D);
+    k(Key::D, SDL_SCANCODE_D); k(Key::N, SDL_SCANCODE_N);
     k(Key::Num1, SDL_SCANCODE_1); k(Key::Num2, SDL_SCANCODE_2); k(Key::Num3, SDL_SCANCODE_3);
     k(Key::Num4, SDL_SCANCODE_4); k(Key::Num5, SDL_SCANCODE_5); k(Key::Num6, SDL_SCANCODE_6);
     k(Key::Num7, SDL_SCANCODE_7); k(Key::Num8, SDL_SCANCODE_8); k(Key::Num9, SDL_SCANCODE_9);
 
-    if (m_input.IsDown(Key::Escape)) {
-        m_shouldClose = true; // ESC 종료 (기존 동작 유지)
-    }
+    // ESC 종료는 각 앱이 판단한다(에디터 텍스트 입력 취소와 충돌 방지). 여기선 키 상태만 노출.
+    // 창 닫기 버튼(SDL_QUIT)은 위에서 m_shouldClose로 처리됨.
 
     // 마우스: 화면 좌표 + 버튼 상태.
     int mx = 0, my = 0;

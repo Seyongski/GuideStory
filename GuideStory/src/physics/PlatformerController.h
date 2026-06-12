@@ -34,6 +34,13 @@ public:
         m_pos = feet; m_vel = {}; m_grounded = false; m_curFoothold = 0; m_dropTimer = 0.0f;
     }
 
+    // 발 x를 [minX, maxX]로 가둔다(맵 좌우 벽). 클램프되면 수평 속도만 제거해
+    // 벽에 붙어 멈추되, 착지/수직 상태(grounded, foothold, vy)는 보존한다.
+    void ClampX(float minX, float maxX) {
+        if (m_pos.x < minX) { m_pos.x = minX; if (m_vel.x < 0.0f) m_vel.x = 0.0f; }
+        else if (m_pos.x > maxX) { m_pos.x = maxX; if (m_vel.x > 0.0f) m_vel.x = 0.0f; }
+    }
+
     math::Vector2D Position() const { return m_pos; } // 발 기준점
     math::Vector2D Velocity() const { return m_vel; }
     bool           Grounded() const { return m_grounded; }

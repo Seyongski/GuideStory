@@ -23,6 +23,8 @@ public:
 
 private:
     void RenderPlayer(platform::IRenderDevice& r);
+    math::Rect PlayerRect() const;
+    void TryEnterPortal(); // 겹친 포탈이 있으면 대상 맵으로 이동
 
     world::Map                    m_map;
     physics::PlatformerController  m_player;
