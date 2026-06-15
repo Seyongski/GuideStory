@@ -5,6 +5,7 @@
   "builtin-baseline": "32305df7d0b9a308e6ac454dd98ebfe550342c09",
   "dependencies": [
     "sdl2",
-    "sdl2-ttf"
+    "sdl2-ttf",
+    "sdl2-image"
   ]
 }

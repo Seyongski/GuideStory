@@ -1,10 +1,12 @@
 #include "editor/MapEditor.h"
 
 #include "core/WorldRenderer.h"  // PortalBox (히트테스트 박스 공유)
+#include "platform/FileDialog.h" // 네이티브 열기/저장 대화상자 + 자산 폴더
 #include "world/MapScaffold.h"   // BuildDefaultMap (새 맵)
 
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <sstream>
 
 namespace gs::editor {
@@ -15,6 +17,7 @@ using platform::MouseButton;
 namespace {
 const char* ModeName(EditMode m) {
     switch (m) {
+        case EditMode::Browse:   return "둘러보기";
         case EditMode::Tile:     return "타일";
         case EditMode::Foothold: return "풋홀드";
         case EditMode::Spawn:    return "스폰";
@@ -23,10 +26,17 @@ const char* ModeName(EditMode m) {
     return "?";
 }
 
-// 확장자가 없으면 .gsmap을 붙인다(맵 이름을 짧게 타이핑하도록).
+// 확장자가 없으면 .gsmap을 붙인다(포탈 대상 맵 이름을 짧게 타이핑하도록).
 std::string WithMapExt(std::string name) {
     if (name.find('.') == std::string::npos) name += ".gsmap";
     return name;
+}
+
+// 경로에서 파일명만(상태 표시용). UTF-8 바이트 안전(구분자만 탐색).
+std::string FileName(const std::string& path) {
+    if (path.empty()) return "(저장 안 됨)";
+    const auto pos = path.find_last_of("/\\");
+    return (pos == std::string::npos) ? path : path.substr(pos + 1);
 }
 } // namespace
 
@@ -43,15 +53,30 @@ int MapEditor::PortalAt(math::Vector2D world) const {
     return -1;
 }
 
-void MapEditor::CycleMode() {
-    switch (m_mode) {
-        case EditMode::Tile:     m_mode = EditMode::Foothold; break;
-        case EditMode::Foothold: m_mode = EditMode::Spawn;    break;
-        case EditMode::Spawn:    m_mode = EditMode::Portal;   break;
-        case EditMode::Portal:   m_mode = EditMode::Tile;     break;
-    }
+void MapEditor::SetMode(EditMode m) {
+    m_mode = m;
+    if (m != EditMode::Browse) m_showGrid = true; // 배치 모드는 격자를 켠다
     m_hasPending = false;
+    m_panning = false;
     m_status = std::string("모드: ") + ModeName(m_mode);
+}
+
+void MapEditor::SetBackground(const std::string& pathOrName) {
+    m_map.SetBackground(FileName(pathOrName)); // 파일명만 저장 → assets/backgrounds에서 해석
+    m_status = "배경 설정: " + m_map.Background();
+}
+
+void MapEditor::FitToBackground(int wpx, int hpx) {
+    const int ts = m_map.Tiles().TileSize();
+    if (ts <= 0 || wpx <= 0 || hpx <= 0) {
+        m_status = "배경을 먼저 설정하세요";
+        return;
+    }
+    const int tw = std::max(1, (wpx + ts - 1) / ts); // 올림 → 월드가 배경을 덮도록
+    const int th = std::max(1, (hpx + ts - 1) / ts);
+    m_map.Tiles().SetSize(tw, th);
+    m_status = "맵을 배경에 맞춤: " + std::to_string(tw * ts) + " x " +
+               std::to_string(th * ts) + " px";
 }
 
 void MapEditor::RefreshNextIds() {
@@ -67,6 +92,54 @@ void MapEditor::RefreshNextIds() {
     m_selectedPortal = -1;
 }
 
+void MapEditor::NewMap() {
+    world::BuildDefaultMap(m_map);
+    RefreshNextIds();
+    m_mapPath.clear();
+    m_mode = EditMode::Browse; // 새 맵은 둘러보기로 시작
+    m_panning = false;
+    m_status = "새 맵 — [다른이름]으로 저장하세요";
+}
+
+void MapEditor::Save() {
+    if (m_mapPath.empty()) { SaveAs(); return; } // 아직 저장한 적 없음 → 위치 지정
+    try {
+        m_map.Save(m_mapPath);
+        m_status = "저장: " + FileName(m_mapPath);
+    } catch (const std::exception& e) {
+        m_status = std::string("저장 실패: ") + e.what();
+    }
+}
+
+void MapEditor::SaveAs() {
+    const auto path = platform::SaveFileDialog("맵 저장", "GuideStory 맵", "*.gsmap", "gsmap",
+                                               platform::AssetsDir("maps"));
+    if (!path) { m_status = "저장 취소"; return; }
+    try {
+        m_map.Save(*path);
+        m_mapPath = *path;
+        m_status = "저장: " + FileName(m_mapPath);
+    } catch (const std::exception& e) {
+        m_status = std::string("저장 실패: ") + e.what();
+    }
+}
+
+void MapEditor::Open() {
+    const auto path = platform::OpenFileDialog("맵 열기", "GuideStory 맵", "*.gsmap",
+                                               platform::AssetsDir("maps"));
+    if (!path) { m_status = "열기 취소"; return; }
+    try {
+        m_map.Load(*path);
+        m_mapPath = *path;
+        RefreshNextIds();
+        m_mode = EditMode::Browse; // 열면 둘러보기로 시작(클릭이 배치로 새지 않음)
+        m_panning = false;
+        m_status = "열기: " + FileName(m_mapPath);
+    } catch (const std::exception& e) {
+        m_status = std::string("열기 실패: ") + e.what();
+    }
+}
+
 void MapEditor::BeginTextEntry(TextTarget target, std::string initial) {
     m_textActive = true;
     m_textTarget = target;
@@ -76,12 +149,16 @@ void MapEditor::BeginTextEntry(TextTarget target, std::string initial) {
 void MapEditor::CommitText() {
     std::istringstream ss(m_textBuffer);
     if (m_textTarget == TextTarget::Resize) {
-        int w = 0, h = 0;
-        if ((ss >> w >> h) && w > 0 && h > 0 && w <= 1000 && h <= 1000) {
-            m_map.Tiles().SetSize(w, h);
-            m_status = "맵 크기 변경: " + std::to_string(w) + "x" + std::to_string(h);
+        // 입력은 픽셀. 타일 크기로 나눠 격자 칸 수로 변환한다(배경 PNG에 맞추기 쉽게).
+        int wpx = 0, hpx = 0;
+        const int ts = m_map.Tiles().TileSize();
+        if ((ss >> wpx >> hpx) && wpx > 0 && hpx > 0 && wpx <= 32768 && hpx <= 32768 && ts > 0) {
+            const int tw = std::max(1, static_cast<int>(std::lround(static_cast<double>(wpx) / ts)));
+            const int th = std::max(1, static_cast<int>(std::lround(static_cast<double>(hpx) / ts)));
+            m_map.Tiles().SetSize(tw, th);
+            m_status = "맵 크기: " + std::to_string(tw * ts) + " x " + std::to_string(th * ts) + " px";
         } else {
-            m_status = "크기 입력 오류 (가로 세로)";
+            m_status = "크기 입력 오류 (가로 세로 픽셀)";
         }
     } else if (m_textTarget == TextTarget::PortalTarget) {
         std::string name;
@@ -98,41 +175,13 @@ void MapEditor::CommitText() {
         } else {
             m_status = "대상 입력 오류 (파일명 [포탈id])";
         }
-    } else if (m_textTarget == TextTarget::SaveAs) {
-        std::string name;
-        if (ss >> name) {
-            m_mapPath = WithMapExt(name);     // 이름 지정/변경 → 현재 맵 이름이 됨
-            try {
-                m_map.Save(m_mapPath);
-                m_status = "저장: " + m_mapPath;
-            } catch (const std::exception& e) {
-                m_status = std::string("저장 실패: ") + e.what();
-            }
-        } else {
-            m_status = "이름 입력 오류";
-        }
-    } else if (m_textTarget == TextTarget::Open) {
-        std::string name;
-        if (ss >> name) {
-            const std::string path = WithMapExt(name);
-            try {
-                m_map.Load(path);
-                m_mapPath = path;             // 현재 편집 대상이 됨
-                RefreshNextIds();
-                m_status = "열기: " + m_mapPath;
-            } catch (const std::exception& e) {
-                m_status = std::string("열기 실패: ") + e.what();
-            }
-        } else {
-            m_status = "이름 입력 오류";
-        }
     }
     m_textActive = false;
     m_textTarget = TextTarget::None;
     m_textBuffer.clear();
 }
 
-void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt) {
+void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, bool allowMouse) {
     // --- 텍스트 입력 중에는 버퍼만 편집하고 다른 입력은 무시한다 ---
     if (m_textActive) {
         m_textBuffer += in.TextInput();
@@ -155,13 +204,13 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt) {
     cam.Move(d);
     cam.ClampToBounds(m_map.WorldBounds());
 
-    // --- 토글 / 모드 / 리사이즈 ---
-    if (in.WasPressed(Key::G))   m_showGrid = !m_showGrid;
-    if (in.WasPressed(Key::Tab)) CycleMode();
+    // --- 격자 토글 / 리사이즈 (모드 전환은 GUI 툴바가 담당) ---
+    if (in.WasPressed(Key::G)) m_showGrid = !m_showGrid;
     if (in.WasPressed(Key::R)) {
+        const int ts = m_map.Tiles().TileSize();
         BeginTextEntry(TextTarget::Resize,
-                       std::to_string(m_map.Tiles().Width()) + " " +
-                       std::to_string(m_map.Tiles().Height()));
+                       std::to_string(m_map.Tiles().Width() * ts) + " " +
+                       std::to_string(m_map.Tiles().Height() * ts));
     }
 
     // --- 타일 팔레트 선택 (1~5) ---
@@ -173,7 +222,23 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt) {
 
     const math::Vector2D worldMouse = cam.ScreenToWorld(in.MousePos());
 
+    // 포인터가 GUI 툴바 위에 있으면(allowMouse=false) 마우스 편집/드래그를 건너뛴다.
+    if (!allowMouse) { m_panning = false; }
+    else
     switch (m_mode) {
+        case EditMode::Browse: {
+            // 좌드래그로 화면 이동(둘러보기). 첫 프레임은 기준점만 잡고 이동하지 않는다.
+            if (in.MouseDown(MouseButton::Left)) {
+                const math::Vector2D now = in.MousePos();
+                if (m_panning) cam.Move({m_panLast.x - now.x, m_panLast.y - now.y});
+                m_panLast = now;
+                m_panning = true;
+                cam.ClampToBounds(m_map.WorldBounds());
+            } else {
+                m_panning = false;
+            }
+            break;
+        }
         case EditMode::Tile: {
             // 타일 페인트: 좌클릭 칠하기 / 우클릭 지우기 (드래그 지원: IsDown)
             auto& tm = m_map.Tiles();
@@ -242,28 +307,13 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt) {
         }
     }
 
-    // --- 저장 / 다른 이름으로 저장 / 열기 / 새 맵 ---
+    // --- 저장 / 다른 이름으로 저장 / 열기 / 새 맵 (GUI 툴바와 동일 진입점) ---
     if (in.WasPressed(Key::S)) {
-        if (in.IsDown(Key::LShift)) {
-            BeginTextEntry(TextTarget::SaveAs, m_mapPath); // Shift+S = 다른 이름으로 저장(이름 변경)
-        } else {
-            try {                                          // S = 현재 이름으로 저장
-                m_map.Save(m_mapPath);
-                m_status = "저장: " + m_mapPath;
-            } catch (const std::exception& e) {
-                m_status = std::string("저장 실패: ") + e.what();
-            }
-        }
+        if (in.IsDown(Key::LShift)) SaveAs(); // Shift+S = 다른 이름으로 저장(대화상자)
+        else                        Save();   // S = 현재 파일로 저장
     }
-    if (in.WasPressed(Key::L)) {
-        BeginTextEntry(TextTarget::Open, m_mapPath);       // L = 이름으로 열기(현재 이름 미리 채움)
-    }
-    if (in.WasPressed(Key::N)) {                            // N = 새 맵(기본 캔버스)
-        world::BuildDefaultMap(m_map);
-        RefreshNextIds();
-        m_mapPath = "untitled.gsmap";
-        m_status = "새 맵 — Shift+S로 이름을 지정하세요";
-    }
+    if (in.WasPressed(Key::L)) Open();        // L = 열기(대화상자)
+    if (in.WasPressed(Key::N)) NewMap();      // N = 새 맵(기본 캔버스)
 }
 
 void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) const {
@@ -317,22 +367,25 @@ void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) cons
     }
 
     // 좌상단 상태 텍스트(모드/맵이름·크기/상태/입력 프롬프트).
+    // y는 상단 GUI 툴바(높이 40) 아래에서 시작한다.
     const platform::Color txt{240, 240, 245, 255};
-    r.DrawText(std::string("모드: ") + ModeName(m_mode) +
-                   "  [Tab]전환 [R]크기 [G]격자 [S]저장 [Shift+S]다른이름 [L]열기 [N]새맵",
-               {8.0f, 8.0f}, 20.0f, txt);
-    r.DrawText("맵: " + m_mapPath +
-                   "   크기: " + std::to_string(tm.Width()) + " x " + std::to_string(tm.Height()),
-               {8.0f, 32.0f}, 20.0f, txt);
-    if (!m_status.empty()) r.DrawText(m_status, {8.0f, 56.0f}, 18.0f, {200, 230, 200, 255});
+    const char* hint = (m_mode == EditMode::Browse)
+        ? "  좌드래그로 화면 이동 · 상단 버튼으로 모드 선택 · [R]맵 크기"
+        : "  좌클릭 배치 / 우클릭 취소·삭제 · 상단 버튼으로 모드 선택 · [R]맵 크기";
+    r.DrawText(std::string("모드: ") + ModeName(m_mode) + hint, {8.0f, 48.0f}, 20.0f, txt);
+    const int ts = tm.TileSize();
+    std::string info = "맵: " + FileName(m_mapPath) +
+                       "   크기: " + std::to_string(tm.Width() * ts) + " x " +
+                       std::to_string(tm.Height() * ts) + " px";
+    if (!m_map.Background().empty()) info += "   배경: " + m_map.Background();
+    r.DrawText(info, {8.0f, 72.0f}, 20.0f, txt);
+    if (!m_status.empty()) r.DrawText(m_status, {8.0f, 96.0f}, 18.0f, {200, 230, 200, 255});
 
     if (m_textActive) {
         const char* prompt = "";
         switch (m_textTarget) {
-            case TextTarget::Resize:       prompt = "맵 크기(가로 세로): "; break;
+            case TextTarget::Resize:       prompt = "맵 크기(가로 세로 픽셀): "; break;
             case TextTarget::PortalTarget: prompt = "대상 맵 [포탈id]: ";   break;
-            case TextTarget::SaveAs:       prompt = "다른 이름으로 저장: "; break;
-            case TextTarget::Open:         prompt = "맵 열기(이름): ";       break;
             case TextTarget::None:         break;
         }
         r.DrawText(std::string(prompt) + m_textBuffer + "_",

@@ -81,7 +81,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\debug\lib;$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\debug\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2d.lib;SDL2maind.lib;SDL2_ttfd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2d.lib;SDL2maind.lib;SDL2_ttfd.lib;SDL2_imaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /Y /D "$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\debug\bin\*.dll" "$(OutDir)"</Command>
@@ -103,7 +103,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\lib;$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_ttf.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_ttf.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /Y /D "$(SolutionDir)GuideStory\vcpkg_installed\x64-windows\bin\*.dll" "$(OutDir)"</Command>
@@ -116,7 +116,6 @@
     <ClCompile Include="GameScreen.cpp" />
     <ClCompile Include="LoginScreen.cpp" />
     <ClCompile Include="MainMenuScreen.cpp" />
-    <ClCompile Include="Ui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
@@ -124,7 +123,6 @@
     <ClInclude Include="GameScreen.h" />
     <ClInclude Include="LoginScreen.h" />
     <ClInclude Include="MainMenuScreen.h" />
-    <ClInclude Include="Ui.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GuideStory\GuideStory.vcxproj">

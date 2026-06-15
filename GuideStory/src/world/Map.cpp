@@ -9,6 +9,7 @@
 //   TILESIZE 32
 //   SIZE <w> <h>
 //   SPAWN <x> <y>
+//   BACKGROUND <파일명>                  (assets/backgrounds 기준; 빈 값은 "-")
 //   TILES
 //   <w*h개의 타일 번호, 공백/줄바꿈 구분>
 //   FOOTHOLDS <count>
@@ -33,6 +34,7 @@ void Map::Save(const std::string& path) const {
     out << "TILESIZE " << m_tiles.TileSize() << "\n";
     out << "SIZE " << m_tiles.Width() << " " << m_tiles.Height() << "\n";
     out << "SPAWN " << m_spawn.x << " " << m_spawn.y << "\n";
+    out << "BACKGROUND " << (m_background.empty() ? kEmptyTarget : m_background.c_str()) << "\n";
 
     out << "TILES\n";
     const auto& raw = m_tiles.Raw();
@@ -76,6 +78,7 @@ void Map::Load(const std::string& path) {
     FootholdMap fhmap;
     math::Vector2D spawn{200.0f, 560.0f};
     std::vector<Portal> portals;
+    std::string background;
 
     // 태그 구동 파싱: 다음 토큰을 보고 섹션을 분기한다. END 또는 EOF에서 종료.
     while (in >> tag) {
@@ -91,6 +94,10 @@ void Map::Load(const std::string& path) {
         } else if (tag == "SPAWN") {
             if (!(in >> spawn.x >> spawn.y))
                 throw std::runtime_error("맵 형식 오류: SPAWN");
+        } else if (tag == "BACKGROUND") {
+            std::string b;
+            if (!(in >> b)) throw std::runtime_error("맵 형식 오류: BACKGROUND");
+            background = (b == kEmptyTarget) ? std::string() : b;
         } else if (tag == "TILES") {
             if (!haveSize || tileSize <= 0)
                 throw std::runtime_error("맵 형식 오류: TILES 앞에 TILESIZE/SIZE 필요");
@@ -136,6 +143,7 @@ void Map::Load(const std::string& path) {
     m_footholds = std::move(fhmap);
     m_spawn = spawn;
     m_portals = std::move(portals);
+    m_background = std::move(background);
 }
 
 } // namespace gs::world

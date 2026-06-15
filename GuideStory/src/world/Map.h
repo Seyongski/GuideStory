@@ -27,6 +27,10 @@ public:
     std::vector<Portal>&       Portals()       { return m_portals; }
     const std::vector<Portal>& Portals() const { return m_portals; }
 
+    // 배경 이미지 파일명(assets/backgrounds 기준, 공백 없는 파일명). 비어 있으면 배경 없음.
+    const std::string& Background() const        { return m_background; }
+    void               SetBackground(std::string name) { m_background = std::move(name); }
+
     // 월드 경계(픽셀): 타일 격자 W×H × 타일크기. 카메라/플레이어 클램프와 경계 렌더에 쓴다.
     math::Rect WorldBounds() const {
         const float s = static_cast<float>(m_tiles.TileSize());
@@ -42,6 +46,7 @@ private:
     FootholdMap         m_footholds;
     math::Vector2D      m_spawn{200.0f, 560.0f}; // 기본 스폰(v1 맵 하위호환)
     std::vector<Portal> m_portals;
+    std::string         m_background;             // 배경 PNG 파일명(없으면 빈 문자열)
 };
 
 } // namespace gs::world

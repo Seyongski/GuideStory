@@ -1,4 +1,4 @@
-#include "Ui.h"
+#include "core/Ui.h"
 
 namespace gs::app::ui {
 
@@ -9,12 +9,46 @@ constexpr platform::Color kBtnFillSel {70, 110, 190, 245}; // 호버/선택 강�
 constexpr platform::Color kBtnBorder {120, 140, 180, 255};
 constexpr platform::Color kBtnText   {235, 240, 250, 255};
 constexpr float kLabelHeight = 30.0f;
+
+// 한 버튼 외형(채움/외곽/가운데 라벨)을 그린다 — Menu와 Button이 공유.
+void DrawButton(platform::IRenderDevice& r, const math::Rect& rect,
+                const std::string& label, bool highlight, float labelHeight) {
+    r.FillRect(rect, highlight ? kBtnFillSel : kBtnFill);
+    r.DrawRect(rect, kBtnBorder);
+    DrawCenteredText(r, label, rect.x + rect.w * 0.5f, rect.y + rect.h * 0.5f,
+                     labelHeight, kBtnText);
+}
 } // namespace
 
 void DrawCenteredText(platform::IRenderDevice& r, const std::string& text,
                       float cx, float cy, float pixelHeight, const platform::Color& color) {
     const math::Vector2D size = r.MeasureText(text, pixelHeight);
     r.DrawText(text, {cx - size.x * 0.5f, cy - size.y * 0.5f}, pixelHeight, color);
+}
+
+void Toolbar::LayoutRow(float startX, float y, float btnW, float btnH, float gap) {
+    float x = startX;
+    for (Item& it : m_items) {
+        it.rect = math::Rect{x, y, btnW, btnH};
+        x += btnW + gap;
+    }
+}
+
+int Toolbar::Update(const platform::Input& in) {
+    const math::Vector2D mouse = in.MousePos();
+    m_hover = -1;
+    for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
+        if (m_items[i].rect.Contains(mouse)) { m_hover = i; break; }
+    }
+    if (m_hover != -1 && in.MousePressed(platform::MouseButton::Left)) return m_hover;
+    return -1;
+}
+
+void Toolbar::Render(platform::IRenderDevice& r) const {
+    for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
+        const Item& it = m_items[i];
+        DrawButton(r, it.rect, it.label, i == m_hover || i == m_active, 20.0f);
+    }
 }
 
 void Menu::Layout(float centerX, float firstCenterY, float btnW, float btnH, float gap) {
@@ -51,13 +85,7 @@ int Menu::Update(const platform::Input& in) {
 void Menu::Render(platform::IRenderDevice& r) const {
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
         const Item& it = m_items[i];
-        const bool sel = (i == m_selected);
-        r.FillRect(it.rect, sel ? kBtnFillSel : kBtnFill);
-        r.DrawRect(it.rect, kBtnBorder);
-        DrawCenteredText(r, it.label,
-                         it.rect.x + it.rect.w * 0.5f,
-                         it.rect.y + it.rect.h * 0.5f,
-                         kLabelHeight, kBtnText);
+        DrawButton(r, it.rect, it.label, i == m_selected, kLabelHeight);
     }
 }
 

@@ -1,26 +1,29 @@
 #include "EditorApp.h"
 
-#include "core/WorldRenderer.h"
-#include "world/MapScaffold.h"
+#include "DataEditorScreen.h"
+#include "LauncherScreen.h"
+#include "MapEditorScreen.h"
 
 #include <chrono>
 
 namespace gs::app {
 
-namespace {
-// 1차: 윈도우 크기 고정 (IWindow에 크기 질의 추가 전까지 상수).
-constexpr float kViewW = 1280.0f;
-constexpr float kViewH = 720.0f;
-} // namespace
-
 EditorApp::EditorApp(platform::IWindow& window, platform::IRenderDevice& renderer)
     : m_window(window),
       m_renderer(renderer),
-      m_camera(kViewW, kViewH),
-      m_editor(m_map) {
-    // 편집 기준이 되는 기본 맵으로 시작한다(빈 캔버스 대신). L 키로 저장본을 불러올 수 있다.
-    world::BuildDefaultMap(m_map);
-    m_camera.Follow({640.0f, 360.0f});
+      m_screen(MakeScreen(EditorScene::Launcher)) // 시작은 선택 화면
+{
+}
+
+std::unique_ptr<EditorScreen> EditorApp::MakeScreen(EditorScene id) {
+    switch (id) {
+        case EditorScene::MapEditor:     return std::make_unique<MapEditorScreen>();
+        case EditorScene::PlayerEditor:  return std::make_unique<DataEditorScreen>("플레이어 에디터");
+        case EditorScene::SkillEditor:   return std::make_unique<DataEditorScreen>("스킬 에디터");
+        case EditorScene::MonsterEditor: return std::make_unique<DataEditorScreen>("몬스터 에디터");
+        case EditorScene::NpcEditor:     return std::make_unique<DataEditorScreen>("NPC 에디터");
+        default:                         return std::make_unique<LauncherScreen>();
+    }
 }
 
 void EditorApp::Run() {
@@ -35,29 +38,17 @@ void EditorApp::Run() {
         prev = now;
         if (dt > 0.05f) dt = 0.05f; // 스파이크 클램프
 
-        // ESC: 텍스트 입력 중이면 에디터가 취소로 소비, 아니면 에디터 종료.
         const platform::Input& in = m_window.GetInput();
-        const bool esc = in.WasPressed(platform::Key::Escape);
-        const bool typing = m_editor.IsTextActive();
+        // ESC는 전역 트랩하지 않는다 — 각 화면이 ESC(취소/뒤로/종료)를 스스로 해석한다.
+        const EditorScene next = m_screen->Update(in, dt);
+        if (next == EditorScene::Quit) break;        // 애플리케이션 종료
+        if (next != EditorScene::Stay) {              // 화면 전환
+            m_screen = MakeScreen(next);
+        }
 
-        Update(dt);
-        Render();
-
-        if (esc && !typing) break;
+        m_screen->Render(m_renderer);
+        m_renderer.Present();
     }
-}
-
-void EditorApp::Update(float dt) {
-    const platform::Input& in = m_window.GetInput();
-    // 항상 편집 모드. 카메라 패닝·타일 페인트·풋홀드 배치·저장/로드는 MapEditor가 처리한다.
-    m_editor.Update(in, m_camera, dt);
-}
-
-void EditorApp::Render() {
-    m_renderer.Clear({100, 149, 237, 255}); // 하늘색
-    core::RenderWorld(m_renderer, m_camera, m_map);
-    m_editor.Render(m_renderer, m_camera); // 그리드/펜딩/모드 배지 오버레이
-    m_renderer.Present();
 }
 
 } // namespace gs::app

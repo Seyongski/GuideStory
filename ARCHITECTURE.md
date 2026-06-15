@@ -11,7 +11,7 @@
 | IDE / 툴셋 | Visual Studio 2022 (v143) | `GuideStory.sln` |
 | 언어 표준 | **C++20** | ⚠️ vcxproj에 `LanguageStandard` 미설정 — [tech-debt-tracker.md](tech-debt-tracker.md) D-002 |
 | 플랫폼 | Win32 / x64 (Console) | 서버·AI는 x64 권장 |
-| 클라이언트 그래픽 | SDL2 (+ SDL2_ttf) | 추상화 레이어 뒤로 격리 (ADR-006). 텍스트는 `IRenderDevice::DrawText`로 은닉, 구현만 SDL_ttf |
+| 클라이언트 그래픽 | SDL2 (+ SDL2_ttf, SDL2_image) | 추상화 레이어 뒤로 격리 (ADR-006). 텍스트는 `IRenderDevice::DrawText`, 이미지는 `LoadTexture`/`DrawTexture`로 은닉(구현만 SDL_ttf/SDL_image). PNG 디코딩=SDL_image |
 | 네트워크 | WinSock (IOCP / Select) | 데디케이트 서버 (ADR-001) |
 | AI 학습/추론 | Python(학습) + libtorch(C++ 추론) | ADR-007 |
 | C++ ↔ Python | ZMQ 또는 Socket | ADR-007 |
@@ -47,9 +47,9 @@ GuideStory/
 ├─ GuideStory/                     # ▶ GuideStoryEngine (정적 라이브러리)
 │  ├─ GuideStory.vcxproj
 │  └─ src/
-│     ├─ core/        # 카메라, 월드 렌더(RenderWorld) 등 공용 (SDL 비의존)
+│     ├─ core/        # 카메라, 월드 렌더(RenderWorld), Ui(메뉴/툴바 위젯) 등 공용 (SDL 비의존)
 │     ├─ math/        # Vector2D, Rect (SDL 비의존 — ADR-006)
-│     ├─ platform/    # RenderDevice / Window 인터페이스 (+ SDL2 구현)
+│     ├─ platform/    # RenderDevice / Window / 입력 인터페이스 (+ SDL2 구현), FileDialog(네이티브 열기·저장 + 자산 경로)
 │     ├─ world/       # TileMap·Foothold·Map·MapScaffold (ADR-008)
 │     ├─ editor/      # MapEditor (편집 로직)
 │     ├─ ecs/         # 컴포넌트 기반 게임 오브젝트 (ADR-003)
@@ -58,10 +58,12 @@ GuideStory/
 │     ├─ data/        # DataManager: JSON/CSV 로드·캐싱 (ADR-005)
 │     └─ net/         # WinSock 패킷·세션·서버 루프 (ADR-001)
 ├─ GuideStoryEditor/               # ▶ GuideStoryEditor.exe (편집·저장)
-│  └─ main.cpp + EditorApp.{h,cpp}
+│  └─ main.cpp + EditorApp(호스트 루프) + EditorScreen(화면 인터페이스)
+│     + LauncherScreen + MapEditorScreen + DataEditorScreen(플레이어/스킬/몬스터/NPC 공유 골격)
+│     # 화면 흐름: 선택 화면 → 각 에디터(빈 화면 → 새로 만들기/열기 → 편집 → 저장)
 └─ GuideStoryGame/                 # ▶ GuideStoryGame.exe (맵 로드·플레이)
    └─ main.cpp + App(호스트 루프) + Screen(장면 인터페이스)
-      + LoginScreen / MainMenuScreen / GameScreen + Ui(메뉴 위젯)
+      + LoginScreen / MainMenuScreen / GameScreen   # Ui 위젯은 엔진 core/로 이동(두 앱 공유)
       # 장면 흐름: 로그인창 → 메인화면(게임시작/환경설정/로그아웃/게임종료) → 인게임
 ```
 > 엔진 라이브러리는 `main`/호스트 루프를 갖지 않는다. 두 앱이 각자 합성 루트(`main`)에서
@@ -137,7 +139,7 @@ GuideStory/
 > **모듈 추가**: `world/`(TileMap·Foothold·FootholdMap·Map), `editor/`(MapEditor), `core/Camera`. 입력은 `platform/Input`으로 SDL과 디커플(ADR-006). 물리는 `MoveIntent` 추상 입력만 받아 platform과도 분리.
 
 ### ADR-009 — 에디터/런타임 실행파일 분리 (공통 엔진 정적 라이브러리)
-- **결정**: 편집과 플레이를 **두 개의 실행파일**로 분리한다. `GuideStoryEngine`(정적 라이브러리)이 공통 코드(math/platform/world/physics/core/editor)를 담고, `GuideStoryEditor.exe`(편집·저장)와 `GuideStoryGame.exe`(맵 파일 로드·플레이)가 각자 `main` + 호스트 루프를 갖는다. 두 앱은 라이브러리를 통해 `SDLWindow`/`SDLRenderDevice`를 공유한다. 월드 렌더(`core::RenderWorld`)와 기본 맵 빌더(`world::BuildDefaultMap`)는 라이브러리로 추출해 중복을 제거했다.
+- **결정**: 편집과 플레이를 **두 개의 실행파일**로 분리한다. `GuideStoryEngine`(정적 라이브러리)이 공통 코드(math/platform/world/physics/core/editor)를 담고, `GuideStoryEditor.exe`(편집·저장)와 `GuideStoryGame.exe`(맵 파일 로드·플레이)가 각자 `main` + 호스트 루프를 갖는다. 두 앱은 라이브러리를 통해 `SDLWindow`/`SDLRenderDevice`를 공유한다. 월드 렌더(`core::RenderWorld`)와 기본 맵 빌더(`world::BuildDefaultMap`), GUI 위젯(`core::Ui` — 메뉴/툴바)은 라이브러리로 추출해 두 앱이 공유한다(중복 제거). 에디터도 게임과 같은 화면(Screen) 골격을 갖는다: 선택 화면(런처)에서 맵/플레이어/스킬/몬스터/NPC 에디터로 분기하고, 각 에디터는 빈 화면에서 새로 만들기·열기로 시작한다.
 - **이유**: 런타임 빌드에 편집 UI/툴 코드를 포함하지 않는다(관심사 분리·배포 표면 축소). 에디터는 추후 몬스터/스킬 배치 등 "변경 가능한 리소스" 편집의 home이 된다. 데이터(맵 파일)가 두 프로그램의 유일한 계약이 되어 데이터 주도(ADR-005)와 정렬된다.
 - **트레이드오프**: 솔루션이 1→3 프로젝트로 늘고 빌드 설정(SDL include/lib, DLL 복사, vcpkg 매니페스트 경로 참조)이 앱마다 중복된다. 공통 호스트 루프 코드(타이밍·dt 클램프)가 두 앱에 약간 중복된다.
 - **증명 과제**: 런타임 바이너리가 에디터 코드에 의존하지 않음을 보장. 데이터 파일만으로 에디터↔게임이 연결됨을 검증(에디터 저장 → 게임 로드).
@@ -149,7 +151,7 @@ GuideStory/
 | ID | 증명 과제 | 산출물 | 상태 |
 |----|-----------|--------|------|
 | ADR-001 | IOCP/Select 비교 + N명 동기화 검증 | 비교표, 검증 로그 | ☐ 미착수 |
-| ADR-002 | Custom Deleter RAII 래핑 기록 | 코드 + 회고 | ◐ 진행 중 (SDLWindow/SDLRenderDevice 적용, 회고 미작성) |
+| ADR-002 | Custom Deleter RAII 래핑 기록 | 코드 + 회고 | ◐ 진행 중 (SDLWindow/SDLRenderDevice/SDL_Texture 적용, 회고 미작성) |
 | ADR-003 | 상속→컴포넌트 전환 장단점 비교 | 비교 문서 | ☐ 미착수 |
 | ADR-004 | 브루트포스 vs QuadTree 벤치마크 | ms/CPU 데이터, 한계 분석 | ☐ 미착수 |
 | ADR-005 | 파싱 예외 처리 + 장단점 | 코드 + 회고 | ☐ 미착수 |
@@ -176,15 +178,22 @@ $root  = "$PSScriptRoot\GuideStory"   # vcpkg.json 위치
 $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
 & $msbuild GuideStory.sln /p:Configuration=Debug /p:Platform=x64
 
-# 3) 실행 (두 실행파일은 같은 출력 폴더 x64\Debug 를 공유 → 맵 파일·DLL 공용)
-#    에디터: 타일/풋홀드 편집, S로 field01.gsmap 저장
+# 3) 실행
+#    에디터: 선택 화면 → 맵 에디터에서 편집, [저장]/[열기]는 네이티브 파일 대화상자
 .\x64\Debug\GuideStoryEditor.exe
-#    게임: field01.gsmap 로드 후 플레이(없으면 기본 맵으로 폴백)
+#    게임: assets/maps/field01.gsmap 로드 후 플레이(없으면 기본 맵으로 폴백)
 .\x64\Debug\GuideStoryGame.exe
 ```
 
-- SDL2 버전: 2.32.10 (x64-windows). 산출물 `vcpkg_installed/`는 `.gitignore` 제외(매니페스트로 재현).
-- DLL은 PostBuildEvent가 출력 폴더로 자동 복사(Debug: `SDL2d.dll`).
+- **자산 폴더**: 에디터가 만든 맵 등은 리포 루트의 `assets/maps/`에 저장하고 게임이 같은 곳에서 로드한다.
+  경로는 `platform::AssetsDir()`가 실행 파일에서 위로 올라가 `GuideStory.sln`을 찾아 결정한다(빌드 구성 무관).
+  맨 파일명(포탈 대상·게임 기본 맵)은 `platform::MapPath()`가 이 폴더에 해석한다. (다음 단계: players/skills/monsters/npcs 하위 폴더.)
+- **파일 대화상자**: 열기/저장은 Win32 공통 대화상자(`platform::OpenFileDialog`/`SaveFileDialog`)를 쓰며
+  네이티브 의존은 `platform/FileDialog_Win32.cpp`에만 격리한다(ADR-006). `Comdlg32.lib`는 `#pragma comment(lib)`로 링크.
+- SDL2 2.32.10 / SDL2_ttf 2.24.0 / SDL2_image 2.8.12 (x64-windows). 산출물 `vcpkg_installed/`는 `.gitignore` 제외(매니페스트로 재현).
+- DLL은 PostBuildEvent가 출력 폴더로 자동 복사(Debug: `SDL2d.dll`, `SDL2_ttfd.dll`, `SDL2_imaged.dll`).
+- **텍스처**: `IRenderDevice::LoadTexture(경로)`가 PNG를 로드·캐시(경로→핸들), `DrawTexture`로 그린다.
+  `SDL_Texture`는 RAII 커스텀 deleter로 관리하고 렌더러보다 먼저 해제한다(ADR-002). 배경/오브젝트 이미지는 `assets/backgrounds/`·`assets/objects/`(예정).
 - WinSock 링크는 3단계 net 모듈 착수 시 추가 → [tech-debt-tracker.md](tech-debt-tracker.md) D-005.
 
 ## 7. 관련 문서

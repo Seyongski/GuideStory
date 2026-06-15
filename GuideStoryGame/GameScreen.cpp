@@ -1,6 +1,7 @@
 #include "GameScreen.h"
 
 #include "core/WorldRenderer.h"
+#include "platform/FileDialog.h" // MapPath: 맨 파일명을 자산 맵 폴더에 해석
 #include "world/MapScaffold.h"
 
 #include <cstdio>
@@ -11,9 +12,10 @@ namespace gs::app {
 
 GameScreen::GameScreen(std::string mapPath)
     : m_camera(kViewW, kViewH) {
-    // 에디터가 저장한 맵을 로드한다. 실패하면 기본 맵으로 폴백하고 계속 실행한다.
+    // 에디터가 저장한 맵을 로드한다(자산 폴더 assets/maps에서 해석).
+    // 실패하면 기본 맵으로 폴백하고 계속 실행한다.
     try {
-        m_map.Load(mapPath);
+        m_map.Load(platform::MapPath(mapPath));
     } catch (const std::exception& e) {
         std::fprintf(stderr, "맵 로드 실패(%s) — 기본 맵으로 폴백: %s\n",
                      mapPath.c_str(), e.what());
@@ -73,7 +75,7 @@ void GameScreen::TryEnterPortal() {
     if (targetMap.empty()) return;
 
     try {
-        m_map.Load(targetMap); // 실패 시 예외 → m_map 불변(강한 보장)
+        m_map.Load(platform::MapPath(targetMap)); // 실패 시 예외 → m_map 불변(강한 보장)
     } catch (const std::exception& e) {
         std::fprintf(stderr, "포탈 대상 맵 로드 실패(%s): %s\n", targetMap.c_str(), e.what());
         return;
@@ -92,6 +94,16 @@ void GameScreen::TryEnterPortal() {
 
 void GameScreen::Render(platform::IRenderDevice& r) {
     r.Clear({100, 149, 237, 255}); // 하늘색
+
+    // 배경 PNG(맵에 설정 시) — 월드 원점에 원본 픽셀 1:1로, 타일/플레이어 뒤에.
+    if (!m_map.Background().empty()) {
+        const platform::TextureId bg = r.LoadTexture(platform::BackgroundPath(m_map.Background()));
+        if (bg != platform::kInvalidTexture) {
+            const math::Vector2D sz = r.TextureSize(bg);
+            r.DrawTexture(bg, m_camera.WorldRectToScreen({0.0f, 0.0f, sz.x, sz.y}));
+        }
+    }
+
     core::RenderWorld(r, m_camera, m_map);
     RenderPlayer(r);
 }

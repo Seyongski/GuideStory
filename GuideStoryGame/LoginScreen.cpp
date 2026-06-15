@@ -1,6 +1,6 @@
 #include "LoginScreen.h"
 
-#include "Ui.h"
+#include "core/Ui.h"
 
 namespace gs::app {
 

@@ -133,12 +133,14 @@
   <ItemGroup>
     <ClCompile Include="src\platform\SDLWindow.cpp" />
     <ClCompile Include="src\platform\SDLRenderDevice.cpp" />
+    <ClCompile Include="src\platform\FileDialog_Win32.cpp" />
     <ClCompile Include="src\world\FootholdMap.cpp" />
     <ClCompile Include="src\world\Map.cpp" />
     <ClCompile Include="src\world\MapScaffold.cpp" />
     <ClCompile Include="src\physics\PlatformerController.cpp" />
     <ClCompile Include="src\editor\MapEditor.cpp" />
     <ClCompile Include="src\core\WorldRenderer.cpp" />
+    <ClCompile Include="src\core\Ui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\math\Vector2D.h" />
@@ -149,6 +151,7 @@
     <ClInclude Include="src\platform\IRenderDevice.h" />
     <ClInclude Include="src\platform\SDLWindow.h" />
     <ClInclude Include="src\platform\SDLRenderDevice.h" />
+    <ClInclude Include="src\platform\FileDialog.h" />
     <ClInclude Include="src\world\Foothold.h" />
     <ClInclude Include="src\world\FootholdMap.h" />
     <ClInclude Include="src\world\TileMap.h" />
@@ -157,6 +160,7 @@
     <ClInclude Include="src\physics\PlatformerController.h" />
     <ClInclude Include="src\core\Camera.h" />
     <ClInclude Include="src\core\WorldRenderer.h" />
+    <ClInclude Include="src\core\Ui.h" />
     <ClInclude Include="src\editor\MapEditor.h" />
   </ItemGroup>
   <ItemGroup>

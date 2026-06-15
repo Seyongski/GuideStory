@@ -3,6 +3,7 @@
 #include "platform/SDLWindow.h"
 
 #include <SDL.h>
+#include <SDL_image.h>
 #include <SDL_ttf.h>
 
 #include <cstdio>
@@ -42,6 +43,13 @@ SDLRenderDevice::SDLRenderDevice(SDLWindow& window)
     // 알파 블렌딩 활성화 — 반투명 디버그 오버레이/그리드용.
     SDL_SetRenderDrawBlendMode(m_renderer.get(), SDL_BLENDMODE_BLEND);
 
+    // 이미지(PNG) 로딩 초기화. 실패해도 게임은 계속 동작한다(이미지만 미표시).
+    if (IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) {
+        m_imgReady = true;
+    } else {
+        std::fprintf(stderr, "IMG_Init(PNG) 실패: %s\n", IMG_GetError());
+    }
+
     // 텍스트 렌더링 초기화. 실패해도 게임은 계속 동작한다(텍스트만 미표시).
     if (TTF_Init() == 0) {
         m_ttfReady = true;
@@ -60,6 +68,8 @@ SDLRenderDevice::SDLRenderDevice(SDLWindow& window)
 }
 
 SDLRenderDevice::~SDLRenderDevice() {
+    m_textures.clear();             // 렌더러보다 먼저 텍스처를 해제(SDL_DestroyTexture).
+    if (m_imgReady) IMG_Quit();
     m_font.reset();                 // TTF_Quit 전에 폰트 핸들을 먼저 닫는다.
     if (m_ttfReady) TTF_Quit();
     // m_renderer는 RAII가 SDL_DestroyRenderer로 해제.
@@ -115,6 +125,47 @@ math::Vector2D SDLRenderDevice::MeasureText(const std::string& utf8, float pixel
     }
     const float scale = pixelHeight / static_cast<float>(h);
     return {static_cast<float>(w) * scale, pixelHeight};
+}
+
+TextureId SDLRenderDevice::LoadTexture(const std::string& path) {
+    if (path.empty()) return kInvalidTexture;
+    if (const auto it = m_textureCache.find(path); it != m_textureCache.end()) return it->second;
+
+    // SDL은 경로를 UTF-8로 해석하고 윈도우에서 와이드로 변환한다(한글 경로 OK).
+    SDL_Surface* surf = IMG_Load(path.c_str());
+    if (!surf) {
+        std::fprintf(stderr, "이미지 로드 실패(%s): %s\n", path.c_str(), IMG_GetError());
+        m_textureCache[path] = kInvalidTexture; // 음수 캐시 — 매 프레임 재시도 방지
+        return kInvalidTexture;
+    }
+    SDL_Texture* raw = SDL_CreateTextureFromSurface(m_renderer.get(), surf);
+    SDL_FreeSurface(surf);
+    if (!raw) {
+        std::fprintf(stderr, "텍스처 생성 실패(%s): %s\n", path.c_str(), SDL_GetError());
+        m_textureCache[path] = kInvalidTexture;
+        return kInvalidTexture;
+    }
+    const TextureId id = static_cast<TextureId>(m_textures.size());
+    m_textures.emplace_back(raw, &SDL_DestroyTexture); // ADR-002: Custom Deleter
+    m_textureCache[path] = id;
+    return id;
+}
+
+void SDLRenderDevice::DrawTexture(TextureId tex, const math::Rect& dst) {
+    if (tex < 0 || tex >= static_cast<TextureId>(m_textures.size())) return;
+    SDL_Texture* t = m_textures[tex].get();
+    if (!t) return;
+    const SDL_FRect d{dst.x, dst.y, dst.w, dst.h};
+    SDL_RenderCopyF(m_renderer.get(), t, nullptr, &d);
+}
+
+math::Vector2D SDLRenderDevice::TextureSize(TextureId tex) const {
+    if (tex < 0 || tex >= static_cast<TextureId>(m_textures.size())) return {0.0f, 0.0f};
+    SDL_Texture* t = m_textures[tex].get();
+    if (!t) return {0.0f, 0.0f};
+    int w = 0, h = 0;
+    SDL_QueryTexture(t, nullptr, nullptr, &w, &h);
+    return {static_cast<float>(w), static_cast<float>(h)};
 }
 
 void SDLRenderDevice::Present() {
