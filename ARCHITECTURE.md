@@ -50,7 +50,7 @@ GuideStory/
 │     ├─ core/        # 카메라, 월드 렌더(RenderWorld), Ui(메뉴/툴바 위젯) 등 공용 (SDL 비의존)
 │     ├─ math/        # Vector2D, Rect (SDL 비의존 — ADR-006)
 │     ├─ platform/    # RenderDevice / Window / 입력 인터페이스 (+ SDL2 구현), FileDialog(네이티브 열기·저장 + 자산 경로)
-│     ├─ world/       # TileMap·Foothold·Map·MapScaffold (ADR-008)
+│     ├─ world/       # TileMap·Foothold·Map(+배경 PNG·MapObject)·MapScaffold (ADR-008)
 │     ├─ editor/      # MapEditor (편집 로직)
 │     ├─ ecs/         # 컴포넌트 기반 게임 오브젝트 (ADR-003)
 │     ├─ physics/     # PlatformerController; AABB, QuadTree (ADR-004)
@@ -193,7 +193,10 @@ $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Curr
 - SDL2 2.32.10 / SDL2_ttf 2.24.0 / SDL2_image 2.8.12 (x64-windows). 산출물 `vcpkg_installed/`는 `.gitignore` 제외(매니페스트로 재현).
 - DLL은 PostBuildEvent가 출력 폴더로 자동 복사(Debug: `SDL2d.dll`, `SDL2_ttfd.dll`, `SDL2_imaged.dll`).
 - **텍스처**: `IRenderDevice::LoadTexture(경로)`가 PNG를 로드·캐시(경로→핸들), `DrawTexture`로 그린다.
-  `SDL_Texture`는 RAII 커스텀 deleter로 관리하고 렌더러보다 먼저 해제한다(ADR-002). 배경/오브젝트 이미지는 `assets/backgrounds/`·`assets/objects/`(예정).
+  `SDL_Texture`는 RAII 커스텀 deleter로 관리하고 렌더러보다 먼저 해제한다(ADR-002). 배경 이미지는 `assets/backgrounds/`.
+- **배경/오브젝트**: 배경 PNG와 배치 오브젝트(건물 등)는 공유 `core::RenderWorld`가 그린다 → 에디터와 게임이 동일하게 표시.
+  오브젝트는 1차로 단색 프리셋(`core::ObjectPalette` — 크기 타일 단위 + 색)이며, 추후 스프라이트로 확장. 충돌은 풋홀드가 담당(ADR-008).
+- **MapleStory 리소스**: WzComparerR로 추출한 배경/스프라이트는 WZ `.img` 노드 포맷이라 SDL_image로 직접 못 읽는다 — **PNG로 export** 후 `assets/`에 둔다(`.img/.wz` 직접 파싱은 별도 과제).
 - WinSock 링크는 3단계 net 모듈 착수 시 추가 → [tech-debt-tracker.md](tech-debt-tracker.md) D-005.
 
 ## 7. 관련 문서

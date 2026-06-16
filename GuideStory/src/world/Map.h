@@ -14,6 +14,13 @@
 // P-006에서 JSON + DataManager로 승격(ADR-005).
 namespace gs::world {
 
+// 배치된 오브젝트(건물 등). 1차는 단색 프리셋(core::ObjectPalette 인덱스) + 월드 좌상단 위치.
+// 추후 preset이 스프라이트(아틀라스 srcRect)로 확장된다. 충돌은 풋홀드가 담당(ADR-008).
+struct MapObject {
+    int            preset = 0; // core::ObjectPalette 인덱스
+    math::Vector2D pos{};      // 월드 좌상단(픽셀)
+};
+
 class Map {
 public:
     TileMap&            Tiles()           { return m_tiles; }
@@ -26,6 +33,9 @@ public:
 
     std::vector<Portal>&       Portals()       { return m_portals; }
     const std::vector<Portal>& Portals() const { return m_portals; }
+
+    std::vector<MapObject>&       Objects()       { return m_objects; }
+    const std::vector<MapObject>& Objects() const { return m_objects; }
 
     // 배경 이미지 파일명(assets/backgrounds 기준, 공백 없는 파일명). 비어 있으면 배경 없음.
     const std::string& Background() const        { return m_background; }
@@ -45,8 +55,9 @@ private:
     TileMap             m_tiles;
     FootholdMap         m_footholds;
     math::Vector2D      m_spawn{200.0f, 560.0f}; // 기본 스폰(v1 맵 하위호환)
-    std::vector<Portal> m_portals;
-    std::string         m_background;             // 배경 PNG 파일명(없으면 빈 문자열)
+    std::vector<Portal>    m_portals;
+    std::vector<MapObject> m_objects;             // 배치된 오브젝트(건물 등)
+    std::string            m_background;           // 배경 PNG 파일명(없으면 빈 문자열)
 };
 
 } // namespace gs::world

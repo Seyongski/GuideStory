@@ -26,6 +26,9 @@ public:
     // startX부터 오른쪽으로 (btnW + gap) 간격, 공통 y/높이로 배치.
     void LayoutRow(float startX, float y, float btnW, float btnH, float gap);
 
+    // startY부터 아래로 (btnH + gap) 간격, 공통 x/너비로 배치(세로 팔레트).
+    void LayoutColumn(float x, float startY, float btnW, float btnH, float gap);
+
     // 입력 처리. 클릭된 버튼 인덱스를 반환, 없으면 -1. (호버 강조는 다음 Render에 반영)
     int Update(const platform::Input& in);
 
