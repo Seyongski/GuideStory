@@ -42,15 +42,23 @@ private:
     using FontPtr     = std::unique_ptr<TTF_Font, void (*)(TTF_Font*)>;
     using TexturePtr  = std::unique_ptr<SDL_Texture, void (*)(SDL_Texture*)>;
 
+    // 렌더한 텍스트 한 줄을 캐시(매 프레임 서피스/텍스처 재생성 회피).
+    struct CachedText {
+        TexturePtr texture;
+        int        w = 0; // 기준 폰트 크기로 렌더된 픽셀 크기(DrawText에서 스케일)
+        int        h = 0;
+    };
+
     RendererPtr m_renderer;
     FontPtr     m_font;          // 기준 크기로 1회 로드, DrawText에서 스케일링.
     bool        m_ttfReady = false; // TTF_Init 성공 여부 → 소멸자에서 TTF_Quit 가드.
     bool        m_imgReady = false; // IMG_Init 성공 여부 → 소멸자에서 IMG_Quit 가드.
 
-    // 텍스처 캐시: 경로→핸들(인덱스). m_textures는 m_renderer보다 뒤에 선언해
-    // 소멸자에서 렌더러보다 먼저 해제되도록 한다(텍스처는 렌더러에 종속).
-    std::vector<TexturePtr>                m_textures;
+    // 텍스처/텍스트 캐시. m_renderer보다 뒤에 선언해 소멸자에서 렌더러보다 먼저 해제되도록
+    // 한다(SDL 텍스처는 렌더러에 종속). 키: 이미지=경로, 텍스트=색+문자열.
+    std::vector<TexturePtr>                    m_textures;
     std::unordered_map<std::string, TextureId> m_textureCache;
+    std::unordered_map<std::string, CachedText> m_textCache;
 };
 
 } // namespace gs::platform

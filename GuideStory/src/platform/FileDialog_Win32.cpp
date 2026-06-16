@@ -40,13 +40,24 @@ std::filesystem::path ExeDir() {
 }
 
 // 실행 파일에서 위로 올라가며 GuideStory.sln이 있는 폴더(=리포 루트)를 찾는다.
-std::filesystem::path RepoRoot() {
-    std::error_code ec;
-    for (std::filesystem::path d = ExeDir(); !d.empty(); d = d.parent_path()) {
-        if (std::filesystem::exists(d / "GuideStory.sln", ec)) return d;
-        if (d == d.root_path()) break;
-    }
-    return ExeDir(); // 폴백: 배포본 등 .sln이 없을 때
+// 프로세스 수명 동안 불변 → 1회만 계산하고 캐시한다(매 프레임 경로 해석에서 파일시스템 탐색 회피).
+const std::filesystem::path& RepoRoot() {
+    static const std::filesystem::path root = [] {
+        std::error_code ec;
+        for (std::filesystem::path d = ExeDir(); !d.empty(); d = d.parent_path()) {
+            if (std::filesystem::exists(d / "GuideStory.sln", ec)) return d;
+            if (d == d.root_path()) break;
+        }
+        return ExeDir(); // 폴백: 배포본 등 .sln이 없을 때
+    }();
+    return root;
+}
+
+// <repo>/assets/<sub> 경로(생성하지 않음 — 읽기 해석용).
+std::filesystem::path AssetsPathW(const std::string& sub) {
+    std::filesystem::path dir = RepoRoot() / L"assets";
+    if (!sub.empty()) dir /= Utf8ToWide(sub);
+    return dir;
 }
 
 // 공통 대화상자 필터 문자열: "라벨\0패턴\0\0".
@@ -62,22 +73,20 @@ std::wstring BuildFilter(const std::wstring& label, const std::wstring& pattern)
 } // namespace
 
 std::string AssetsDir(const std::string& sub) {
-    std::filesystem::path dir = RepoRoot() / L"assets";
-    if (!sub.empty()) dir /= Utf8ToWide(sub);
+    const std::filesystem::path dir = AssetsPathW(sub);
     std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
+    std::filesystem::create_directories(dir, ec); // 대화상자 초기 폴더·저장 대상 보장
     return WideToUtf8(dir.wstring());
 }
 
 namespace {
 // name을 자산 하위 폴더(sub)에 해석. 절대 경로면 그대로.
+// 읽기 경로 해석이라 디렉터리를 생성하지 않는다(매 프레임 호출되는 핫패스).
 std::string ResolveAsset(const std::string& sub, const std::string& name) {
     if (name.empty()) return name;
     const std::filesystem::path p(Utf8ToWide(name));
     if (p.is_absolute()) return name;
-    const std::filesystem::path full =
-        std::filesystem::path(Utf8ToWide(AssetsDir(sub))) / Utf8ToWide(name);
-    return WideToUtf8(full.wstring());
+    return WideToUtf8((AssetsPathW(sub) / Utf8ToWide(name)).wstring());
 }
 } // namespace
 
