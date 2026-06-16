@@ -34,6 +34,14 @@ void Toolbar::LayoutRow(float startX, float y, float btnW, float btnH, float gap
     }
 }
 
+void Toolbar::LayoutColumn(float x, float startY, float btnW, float btnH, float gap) {
+    float y = startY;
+    for (Item& it : m_items) {
+        it.rect = math::Rect{x, y, btnW, btnH};
+        y += btnH + gap;
+    }
+}
+
 int Toolbar::Update(const platform::Input& in) {
     const math::Vector2D mouse = in.MousePos();
     m_hover = -1;

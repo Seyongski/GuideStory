@@ -31,8 +31,9 @@ private:
     std::optional<editor::MapEditor> m_editor; // 편집 상태에서만 존재
 
     ui::Menu    m_emptyMenu;  // 빈 상태 메뉴
-    ui::Toolbar m_tools;      // 편집: 둘러보기/격자/타일/풋홀드/스폰/포탈/배경/맞춤
+    ui::Toolbar m_tools;      // 편집: 둘러보기/격자/타일/풋홀드/스폰/포탈/배경/맞춤/오브젝트
     ui::Toolbar m_files;      // 편집: 새로/열기/저장/다른이름/메뉴로
+    ui::Toolbar m_objPalette; // 우측 패널: 오브젝트 프리셋 목록(Object 모드일 때만 표시)
 
     // 배경 텍스처의 원본 픽셀 크기(렌더에서 갱신). "맞춤" 버튼이 이 값으로 맵 크기를 정한다.
     math::Vector2D m_bgSize{};

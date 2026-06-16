@@ -15,7 +15,8 @@ namespace gs::editor {
 
 // 편집 모드. Browse는 배치 없이 좌드래그로 화면을 이동(둘러보기)한다.
 // 나머지는 좌클릭으로 각 요소를 배치한다. 전환은 GUI 툴바 버튼이 담당한다.
-enum class EditMode { Browse, Tile, Foothold, Spawn, Portal };
+// Object는 우측 팔레트에서 고른 프리셋을 좌클릭으로 배치(우클릭 삭제), 고스트 미리보기.
+enum class EditMode { Browse, Tile, Foothold, Spawn, Portal, Object };
 
 class MapEditor {
 public:
@@ -43,8 +44,13 @@ public:
     // 맵 격자 크기를 배경 픽셀 크기를 덮도록 맞춘다(올림). 배경 크기는 호출측이 렌더에서 구해 전달.
     void FitToBackground(int wpx, int hpx);
 
+    // 오브젝트 프리셋 선택 → Object 모드로 전환(우측 팔레트가 호출). 현재 프리셋 조회.
+    void SelectObject(int preset);
+    int  CurrentObject() const { return m_currentObject; }
+
     // 파일 동작 — 키보드 단축키(N/S/Shift+S/L)와 GUI 툴바가 공유하는 진입점.
-    void NewMap();       // 기본 캔버스로 새 맵(미저장 상태)
+    void NewMap();       // 새 맵: 먼저 이름을 정한 뒤(저장 대화상자) 기본 캔버스를 만들고 저장
+    void CreateDefault(const std::string& path); // 기본 캔버스 생성 + 경로 지정 + 즉시 저장(이름 결정 후 호출)
     void Save();         // 현재 파일로 저장(아직 저장한 적 없으면 SaveAs로 위임)
     void SaveAs();       // 다른 이름으로 저장(네이티브 파일 대화상자)
     void Open();         // 열기(네이티브 파일 대화상자)
@@ -60,18 +66,24 @@ private:
     enum class TextTarget { None, Resize, PortalTarget };
 
     math::Vector2D SnapToGrid(math::Vector2D world) const;
+    math::Vector2D SnapTopLeft(math::Vector2D world) const; // 좌상단을 셀에 내림 정렬(오브젝트)
     int  PortalAt(math::Vector2D world) const;     // 히트된 포탈 인덱스, 없으면 -1
+    int  ObjectAt(math::Vector2D world) const;     // 히트된 오브젝트 인덱스(위 우선), 없으면 -1
     void BeginTextEntry(TextTarget target, std::string initial);
     void CommitText();
     void RefreshNextIds(); // 로드/새맵 후 다음 풋홀드·포탈 id를 최대값+1로 복원
 
     world::Map&    m_map;
     world::TileId  m_currentTile = 1;
+    int            m_currentObject = 0;  // 선택된 오브젝트 프리셋(core::ObjectPalette 인덱스)
     EditMode       m_mode = EditMode::Browse; // 기본: 둘러보기(드래그 패닝)
     bool           m_showGrid = false;
 
     bool           m_panning = false;    // 좌드래그 패닝 진행 중
     math::Vector2D m_panLast{};          // 직전 프레임 마우스 위치(드래그 델타용)
+
+    math::Vector2D m_pointer{};          // 직전 마우스 화면 위치(오브젝트 고스트용)
+    bool           m_pointerInCanvas = false; // 포인터가 캔버스(=GUI 밖)에 있는가
 
     bool           m_hasPending = false; // 풋홀드 첫 점 찍힘
     math::Vector2D m_pendingPoint{};

@@ -161,6 +161,7 @@
     <ClInclude Include="src\core\Camera.h" />
     <ClInclude Include="src\core\WorldRenderer.h" />
     <ClInclude Include="src\core\Ui.h" />
+    <ClInclude Include="src\core\ObjectPalette.h" />
     <ClInclude Include="src\editor\MapEditor.h" />
   </ItemGroup>
   <ItemGroup>

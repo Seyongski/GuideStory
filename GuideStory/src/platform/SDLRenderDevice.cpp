@@ -68,7 +68,8 @@ SDLRenderDevice::SDLRenderDevice(SDLWindow& window)
 }
 
 SDLRenderDevice::~SDLRenderDevice() {
-    m_textures.clear();             // 렌더러보다 먼저 텍스처를 해제(SDL_DestroyTexture).
+    m_textCache.clear();            // 렌더러보다 먼저 텍스트 텍스처 해제.
+    m_textures.clear();             // 렌더러보다 먼저 이미지 텍스처 해제(SDL_DestroyTexture).
     if (m_imgReady) IMG_Quit();
     m_font.reset();                 // TTF_Quit 전에 폰트 핸들을 먼저 닫는다.
     if (m_ttfReady) TTF_Quit();
@@ -101,19 +102,34 @@ void SDLRenderDevice::DrawText(const std::string& utf8, const math::Vector2D& to
                                float pixelHeight, const Color& color) {
     if (!m_font || utf8.empty()) return;
 
-    const SDL_Color c{color.r, color.g, color.b, color.a};
-    SDL_Surface* surf = TTF_RenderUTF8_Blended(m_font.get(), utf8.c_str(), c);
-    if (!surf) return;
+    // 캐시 키 = 색(8 hex) + 문자열. 같은 (문자열,색)은 텍스처를 재사용하고 dst만 스케일한다.
+    char prefix[9];
+    std::snprintf(prefix, sizeof(prefix), "%02X%02X%02X%02X", color.r, color.g, color.b, color.a);
+    std::string key;
+    key.reserve(8 + utf8.size());
+    key.append(prefix, 8).append(utf8);
 
-    if (SDL_Texture* tex = SDL_CreateTextureFromSurface(m_renderer.get(), surf)) {
-        const float scale = (surf->h > 0) ? pixelHeight / static_cast<float>(surf->h) : 1.0f;
-        const SDL_FRect dst{topLeft.x, topLeft.y,
-                            static_cast<float>(surf->w) * scale,
-                            static_cast<float>(surf->h) * scale};
-        SDL_RenderCopyF(m_renderer.get(), tex, nullptr, &dst);
-        SDL_DestroyTexture(tex);
+    auto it = m_textCache.find(key);
+    if (it == m_textCache.end()) {
+        const SDL_Color c{color.r, color.g, color.b, color.a};
+        SDL_Surface* surf = TTF_RenderUTF8_Blended(m_font.get(), utf8.c_str(), c);
+        if (!surf) return;
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(m_renderer.get(), surf);
+        const int w = surf->w, h = surf->h;
+        SDL_FreeSurface(surf);
+        if (!tex) return;
+
+        // 무한 증식 방지(동적 상태 텍스트 등) — 임계 초과 시 캐시 비움.
+        if (m_textCache.size() > 1024) m_textCache.clear();
+        it = m_textCache.emplace(std::move(key),
+                                 CachedText{TexturePtr(tex, &SDL_DestroyTexture), w, h}).first;
     }
-    SDL_FreeSurface(surf);
+
+    const CachedText& e = it->second;
+    const float scale = (e.h > 0) ? pixelHeight / static_cast<float>(e.h) : 1.0f;
+    const SDL_FRect dst{topLeft.x, topLeft.y,
+                        static_cast<float>(e.w) * scale, static_cast<float>(e.h) * scale};
+    SDL_RenderCopyF(m_renderer.get(), e.texture.get(), nullptr, &dst);
 }
 
 math::Vector2D SDLRenderDevice::MeasureText(const std::string& utf8, float pixelHeight) const {

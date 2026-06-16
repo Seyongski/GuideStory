@@ -1,5 +1,6 @@
 #include "editor/MapEditor.h"
 
+#include "core/ObjectPalette.h"  // 오브젝트 프리셋(크기·색)
 #include "core/WorldRenderer.h"  // PortalBox (히트테스트 박스 공유)
 #include "platform/FileDialog.h" // 네이티브 열기/저장 대화상자 + 자산 폴더
 #include "world/MapScaffold.h"   // BuildDefaultMap (새 맵)
@@ -22,6 +23,7 @@ const char* ModeName(EditMode m) {
         case EditMode::Foothold: return "풋홀드";
         case EditMode::Spawn:    return "스폰";
         case EditMode::Portal:   return "포탈";
+        case EditMode::Object:   return "오브젝트";
     }
     return "?";
 }
@@ -45,10 +47,26 @@ math::Vector2D MapEditor::SnapToGrid(math::Vector2D w) const {
     return {std::round(w.x / s) * s, std::round(w.y / s) * s};
 }
 
+math::Vector2D MapEditor::SnapTopLeft(math::Vector2D w) const {
+    const float s = static_cast<float>(m_map.Tiles().TileSize());
+    return {std::floor(w.x / s) * s, std::floor(w.y / s) * s};
+}
+
 int MapEditor::PortalAt(math::Vector2D world) const {
     const auto& portals = m_map.Portals();
     for (int i = 0; i < static_cast<int>(portals.size()); ++i) {
         if (core::PortalBox(portals[i].pos).Contains(world)) return i;
+    }
+    return -1;
+}
+
+int MapEditor::ObjectAt(math::Vector2D world) const {
+    const float ts = static_cast<float>(m_map.Tiles().TileSize());
+    const auto& objs = m_map.Objects();
+    for (int i = static_cast<int>(objs.size()) - 1; i >= 0; --i) { // 위에 그려진 것 우선
+        const core::ObjectPreset& pr = core::ObjectPresetAt(objs[i].preset);
+        const math::Rect wr{objs[i].pos.x, objs[i].pos.y, pr.wTiles * ts, pr.hTiles * ts};
+        if (wr.Contains(world)) return i;
     }
     return -1;
 }
@@ -64,6 +82,12 @@ void MapEditor::SetMode(EditMode m) {
 void MapEditor::SetBackground(const std::string& pathOrName) {
     m_map.SetBackground(FileName(pathOrName)); // 파일명만 저장 → assets/backgrounds에서 해석
     m_status = "배경 설정: " + m_map.Background();
+}
+
+void MapEditor::SelectObject(int preset) {
+    m_currentObject = preset;
+    SetMode(EditMode::Object); // 격자 켜짐 + 모드 전환
+    m_status = std::string("오브젝트 선택: ") + core::ObjectPresetAt(preset).name;
 }
 
 void MapEditor::FitToBackground(int wpx, int hpx) {
@@ -93,12 +117,25 @@ void MapEditor::RefreshNextIds() {
 }
 
 void MapEditor::NewMap() {
+    // 먼저 이름(저장 위치)을 정한다. 취소하면 현재 맵을 그대로 둔다.
+    const auto path = platform::SaveFileDialog("새 맵 만들기", "GuideStory 맵", "*.gsmap", "gsmap",
+                                               platform::AssetsDir("maps"));
+    if (!path) { m_status = "새 맵 취소"; return; }
+    CreateDefault(*path);
+}
+
+void MapEditor::CreateDefault(const std::string& path) {
     world::BuildDefaultMap(m_map);
     RefreshNextIds();
-    m_mapPath.clear();
+    m_mapPath = path;
     m_mode = EditMode::Browse; // 새 맵은 둘러보기로 시작
     m_panning = false;
-    m_status = "새 맵 — [다른이름]으로 저장하세요";
+    try {
+        m_map.Save(m_mapPath); // 결정한 이름으로 즉시 파일 생성
+        m_status = "새 맵: " + FileName(m_mapPath);
+    } catch (const std::exception& e) {
+        m_status = std::string("새 맵 저장 실패: ") + e.what();
+    }
 }
 
 void MapEditor::Save() {
@@ -221,6 +258,8 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, b
     if (in.WasPressed(Key::Num5)) m_currentTile = 5;
 
     const math::Vector2D worldMouse = cam.ScreenToWorld(in.MousePos());
+    m_pointer = in.MousePos();          // 오브젝트 고스트 미리보기용
+    m_pointerInCanvas = allowMouse;     // GUI 밖일 때만 고스트/배치 허용
 
     // 포인터가 GUI 툴바 위에 있으면(allowMouse=false) 마우스 편집/드래그를 건너뛴다.
     if (!allowMouse) { m_panning = false; }
@@ -305,6 +344,24 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, b
             }
             break;
         }
+        case EditMode::Object: {
+            // 좌클릭: 선택 프리셋을 셀 정렬해 배치. 우클릭: 커서 아래 오브젝트 삭제.
+            if (in.MousePressed(MouseButton::Left)) {
+                world::MapObject o;
+                o.preset = m_currentObject;
+                o.pos = SnapTopLeft(worldMouse);
+                m_map.Objects().push_back(o);
+                m_status = "오브젝트 배치";
+            }
+            if (in.MousePressed(MouseButton::Right)) {
+                const int hit = ObjectAt(worldMouse);
+                if (hit >= 0) {
+                    m_map.Objects().erase(m_map.Objects().begin() + hit);
+                    m_status = "오브젝트 삭제";
+                }
+            }
+            break;
+        }
     }
 
     // --- 저장 / 다른 이름으로 저장 / 열기 / 새 맵 (GUI 툴바와 동일 진입점) ---
@@ -344,6 +401,17 @@ void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) cons
     if (m_mode == EditMode::Foothold && m_hasPending) {
         const math::Vector2D p = cam.WorldToScreen(m_pendingPoint);
         r.FillRect({p.x - 4.0f, p.y - 4.0f, 8.0f, 8.0f}, {255, 230, 0, 255});
+    }
+
+    // 오브젝트 고스트 — 선택 프리셋을 마우스 위치(셀 정렬)에 반투명으로 미리 보여준다.
+    if (m_mode == EditMode::Object && m_pointerInCanvas && s > 0.0f) {
+        const core::ObjectPreset& pr = core::ObjectPresetAt(m_currentObject);
+        const math::Vector2D tl = SnapTopLeft(cam.ScreenToWorld(m_pointer));
+        const math::Rect sr = cam.WorldRectToScreen({tl.x, tl.y, pr.wTiles * s, pr.hTiles * s});
+        platform::Color ghost = pr.color;
+        ghost.a = 120; // 반투명
+        r.FillRect(sr, ghost);
+        r.DrawRect(sr, {255, 255, 255, 200});
     }
 
     // 스폰 마커 — 청록 깃발(세로선 + 머리).

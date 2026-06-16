@@ -1,5 +1,8 @@
 #include "core/WorldRenderer.h"
 
+#include "core/ObjectPalette.h"
+#include "platform/FileDialog.h" // BackgroundPath: 배경 파일명을 assets/backgrounds에 해석
+
 namespace gs::core {
 
 namespace {
@@ -20,6 +23,15 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
     const float viewW = cam.ViewW();
     const float viewH = cam.ViewH();
 
+    // 배경 PNG(맵에 설정 시) — 월드 원점에 원본 픽셀 1:1로(왜곡 없음), 모든 것 뒤에.
+    if (!map.Background().empty()) {
+        const platform::TextureId bg = r.LoadTexture(platform::BackgroundPath(map.Background()));
+        if (bg != platform::kInvalidTexture) {
+            const math::Vector2D sz = r.TextureSize(bg);
+            r.DrawTexture(bg, cam.WorldRectToScreen({0.0f, 0.0f, sz.x, sz.y}));
+        }
+    }
+
     const auto& tm = map.Tiles();
     for (int y = 0; y < tm.Height(); ++y) {
         for (int x = 0; x < tm.Width(); ++x) {
@@ -31,6 +43,18 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
                 continue;
             r.FillRect(sr, TileColor(id));
         }
+    }
+
+    // 오브젝트(건물 등) — 단색 프리셋 사각형. 타일 위, 풋홀드/포탈 아래.
+    const float ts = static_cast<float>(tm.TileSize());
+    for (const auto& o : map.Objects()) {
+        const ObjectPreset& pr = ObjectPresetAt(o.preset);
+        const math::Rect sr = cam.WorldRectToScreen(
+            {o.pos.x, o.pos.y, pr.wTiles * ts, pr.hTiles * ts});
+        if (sr.x > viewW || sr.y > viewH || sr.x + sr.w < 0.0f || sr.y + sr.h < 0.0f)
+            continue; // 화면 밖 컬링
+        r.FillRect(sr, pr.color);
+        r.DrawRect(sr, {0, 0, 0, 120}); // 외곽선
     }
 
     // 풋홀드(충돌선) — 디버그 초록선.
