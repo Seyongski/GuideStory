@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="App">
+      <UniqueIdentifier>{ac0fd75f-93c5-445b-aa55-48a54cc0182f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Screens">
+      <UniqueIdentifier>{04c3f627-5cc2-4cfe-a899-f4c810af5d57}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>App</Filter>
+    </ClCompile>
+    <ClCompile Include="EditorApp.cpp">
+      <Filter>App</Filter>
+    </ClCompile>
+    <ClCompile Include="LauncherScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="MapEditorScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="DataEditorScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="EditorApp.h">
+      <Filter>App</Filter>
+    </ClInclude>
+    <ClInclude Include="EditorScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="LauncherScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="MapEditorScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="DataEditorScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,17 +1,135 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="소스 파일">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="src">
+      <UniqueIdentifier>{dac8325f-f2cb-4965-a136-1a31edb5f6f6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="헤더 파일">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    <Filter Include="src\math">
+      <UniqueIdentifier>{b8cf78fb-c711-4a36-95cb-c6bf5489cba0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="리소스 파일">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="src\platform">
+      <UniqueIdentifier>{dcbfdcf4-0416-408e-aea5-9d468c638acb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\world">
+      <UniqueIdentifier>{d421bde1-6900-457d-ac8d-206510d1a9e6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\physics">
+      <UniqueIdentifier>{c611492e-ee29-4390-8d92-c6a9c18b61d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\editor">
+      <UniqueIdentifier>{73e2a688-6454-4a2d-80c6-9d467adc08d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\core">
+      <UniqueIdentifier>{ad5469e8-12f5-4bc1-983b-409c12a8a979}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\platform\SDLWindow.cpp">
+      <Filter>src\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\SDLRenderDevice.cpp">
+      <Filter>src\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\FileDialog_Win32.cpp">
+      <Filter>src\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\FootholdMap.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\Map.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\MapScaffold.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics\PlatformerController.cpp">
+      <Filter>src\physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\editor\MapEditor.cpp">
+      <Filter>src\editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\WorldRenderer.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\Ui.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\InputMap.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\KeySettingOverlay.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\math\Vector2D.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\Rect.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\Color.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\Input.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\IWindow.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\IRenderDevice.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\SDLWindow.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\SDLRenderDevice.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\FileDialog.h">
+      <Filter>src\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\Foothold.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\FootholdMap.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\TileMap.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\Map.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\MapScaffold.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\physics\PlatformerController.h">
+      <Filter>src\physics</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\Camera.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\WorldRenderer.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\Ui.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\ObjectPalette.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\InputMap.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\KeySettingOverlay.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\MapEditor.h">
+      <Filter>src\editor</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vcpkg.json" />
   </ItemGroup>
 </Project>

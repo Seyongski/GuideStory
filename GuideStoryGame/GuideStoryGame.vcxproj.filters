@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="App">
+      <UniqueIdentifier>{c1c4502b-9462-4f2d-a250-296c330dac85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Screens">
+      <UniqueIdentifier>{4198e99a-c2bc-4b13-8229-3df2bd284d92}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>App</Filter>
+    </ClCompile>
+    <ClCompile Include="App.cpp">
+      <Filter>App</Filter>
+    </ClCompile>
+    <ClCompile Include="GameScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="LoginScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="MainMenuScreen.cpp">
+      <Filter>Screens</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="App.h">
+      <Filter>App</Filter>
+    </ClInclude>
+    <ClInclude Include="Screen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="GameScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="LoginScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="MainMenuScreen.h">
+      <Filter>Screens</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -8,15 +8,18 @@ constexpr platform::Color kBtnFill   {45, 52, 74, 235};
 constexpr platform::Color kBtnFillSel {70, 110, 190, 245}; // 호버/선택 강조
 constexpr platform::Color kBtnBorder {120, 140, 180, 255};
 constexpr platform::Color kBtnText   {235, 240, 250, 255};
+constexpr platform::Color kBtnTextOff{120, 128, 145, 255}; // 비활성 라벨(회색)
 constexpr float kLabelHeight = 30.0f;
 
-// 한 버튼 외형(채움/외곽/가운데 라벨)을 그린다 — Menu와 Button이 공유.
+// 한 버튼 외형(채움/외곽/가운데 라벨)을 그린다 — Menu와 Toolbar가 공유.
+// enabled=false면 호버 강조를 무시하고 라벨을 회색으로 흐린다.
 void DrawButton(platform::IRenderDevice& r, const math::Rect& rect,
-                const std::string& label, bool highlight, float labelHeight) {
-    r.FillRect(rect, highlight ? kBtnFillSel : kBtnFill);
+                const std::string& label, bool highlight, float labelHeight,
+                bool enabled = true) {
+    r.FillRect(rect, (highlight && enabled) ? kBtnFillSel : kBtnFill);
     r.DrawRect(rect, kBtnBorder);
     DrawCenteredText(r, label, rect.x + rect.w * 0.5f, rect.y + rect.h * 0.5f,
-                     labelHeight, kBtnText);
+                     labelHeight, enabled ? kBtnText : kBtnTextOff);
 }
 } // namespace
 
@@ -42,11 +45,16 @@ void Toolbar::LayoutColumn(float x, float startY, float btnW, float btnH, float 
     }
 }
 
+void Toolbar::SetEnabled(int index, bool enabled) {
+    if (index >= 0 && index < static_cast<int>(m_items.size()))
+        m_items[index].enabled = enabled;
+}
+
 int Toolbar::Update(const platform::Input& in) {
     const math::Vector2D mouse = in.MousePos();
     m_hover = -1;
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
-        if (m_items[i].rect.Contains(mouse)) { m_hover = i; break; }
+        if (m_items[i].enabled && m_items[i].rect.Contains(mouse)) { m_hover = i; break; }
     }
     if (m_hover != -1 && in.MousePressed(platform::MouseButton::Left)) return m_hover;
     return -1;
@@ -55,7 +63,7 @@ int Toolbar::Update(const platform::Input& in) {
 void Toolbar::Render(platform::IRenderDevice& r) const {
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
         const Item& it = m_items[i];
-        DrawButton(r, it.rect, it.label, i == m_hover || i == m_active, 20.0f);
+        DrawButton(r, it.rect, it.label, i == m_hover || i == m_active, 20.0f, it.enabled);
     }
 }
 

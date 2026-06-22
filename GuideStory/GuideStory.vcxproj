@@ -141,6 +141,8 @@
     <ClCompile Include="src\editor\MapEditor.cpp" />
     <ClCompile Include="src\core\WorldRenderer.cpp" />
     <ClCompile Include="src\core\Ui.cpp" />
+    <ClCompile Include="src\core\InputMap.cpp" />
+    <ClCompile Include="src\core\KeySettingOverlay.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\math\Vector2D.h" />
@@ -162,6 +164,8 @@
     <ClInclude Include="src\core\WorldRenderer.h" />
     <ClInclude Include="src\core\Ui.h" />
     <ClInclude Include="src\core\ObjectPalette.h" />
+    <ClInclude Include="src\core\InputMap.h" />
+    <ClInclude Include="src\core\KeySettingOverlay.h" />
     <ClInclude Include="src\editor\MapEditor.h" />
   </ItemGroup>
   <ItemGroup>

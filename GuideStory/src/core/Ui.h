@@ -35,12 +35,16 @@ public:
     // 현재 활성(선택)된 버튼 인덱스. 호버처럼 강조해 토글/모드 상태를 보여준다. -1이면 없음.
     void SetActive(int index) { m_active = index; }
 
+    // 버튼 활성/비활성. 비활성 버튼은 호버·클릭에 반응하지 않고 라벨이 회색으로 흐려진다.
+    void SetEnabled(int index, bool enabled);
+
     void Render(platform::IRenderDevice& r) const;
 
 private:
     struct Item {
         std::string label;
         math::Rect  rect{};
+        bool        enabled = true;
     };
 
     std::vector<Item> m_items;

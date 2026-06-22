@@ -3,6 +3,7 @@
 #include "Screen.h"
 
 #include "core/Camera.h"
+#include "core/InputMap.h"
 #include "physics/PlatformerController.h"
 #include "world/Map.h"
 
@@ -15,8 +16,9 @@ namespace gs::app {
 // 창/타이밍/전환은 App 호스트 루프가 담당한다(이전 GameApp의 Run 루프를 분리).
 class GameScreen final : public Screen {
 public:
+    // bindings: 행동→키 매핑(App이 소유, 키세팅이 편집). 입력은 이 매핑을 통해 질의한다.
     // mapPath: 맵 파일명(자산 폴더 assets/maps에 해석). 로드 실패 시 기본 맵으로 폴백한다.
-    explicit GameScreen(std::string mapPath = "field01.gsmap");
+    explicit GameScreen(const core::InputMap& bindings, std::string mapPath = "field01.gsmap");
 
     SceneId Update(const platform::Input& in, float dt) override;
     void Render(platform::IRenderDevice& r) override;
@@ -26,6 +28,7 @@ private:
     math::Rect PlayerRect() const;
     void TryEnterPortal(); // 겹친 포탈이 있으면 대상 맵으로 이동
 
+    const core::InputMap&         m_bindings; // App 소유 — 수명은 App이 보장
     world::Map                    m_map;
     physics::PlatformerController  m_player;
     core::Camera                  m_camera;

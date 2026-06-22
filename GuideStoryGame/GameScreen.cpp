@@ -10,8 +10,8 @@
 
 namespace gs::app {
 
-GameScreen::GameScreen(std::string mapPath)
-    : m_camera(kViewW, kViewH) {
+GameScreen::GameScreen(const core::InputMap& bindings, std::string mapPath)
+    : m_bindings(bindings), m_camera(kViewW, kViewH) {
     // 에디터가 저장한 맵을 로드한다(자산 폴더 assets/maps에서 해석).
     // 실패하면 기본 맵으로 폴백하고 계속 실행한다.
     try {
@@ -33,7 +33,7 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
     if (in.IsDown(platform::Key::Left))  intent.moveX -= 1.0f;
     if (in.IsDown(platform::Key::Right)) intent.moveX += 1.0f;
 
-    const bool jumpEdge = in.WasPressed(platform::Key::Space);
+    const bool jumpEdge = m_bindings.WasPressed(in, core::Action::Jump); // 기본 Alt, 키세팅으로 변경 가능
     if (jumpEdge && in.IsDown(platform::Key::Down)) {
         intent.dropDown = true; // ↓ + 점프 = 드롭다운
     } else if (jumpEdge) {

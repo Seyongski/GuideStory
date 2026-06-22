@@ -62,6 +62,8 @@ void SDLWindow::PollEvents() {
     k(Key::LShift,SDL_SCANCODE_LSHIFT);
     k(Key::Tab,  SDL_SCANCODE_TAB);    k(Key::Enter, SDL_SCANCODE_RETURN);
     k(Key::Escape,SDL_SCANCODE_ESCAPE); k(Key::Backspace, SDL_SCANCODE_BACKSPACE);
+    k(Key::Backslash, SDL_SCANCODE_BACKSLASH);
+    k(Key::Q, SDL_SCANCODE_Q); k(Key::W, SDL_SCANCODE_W);
     k(Key::S, SDL_SCANCODE_S); k(Key::L, SDL_SCANCODE_L); k(Key::F, SDL_SCANCODE_F);
     k(Key::E, SDL_SCANCODE_E); k(Key::R, SDL_SCANCODE_R); k(Key::G, SDL_SCANCODE_G);
     k(Key::D, SDL_SCANCODE_D); k(Key::N, SDL_SCANCODE_N);

@@ -13,8 +13,8 @@ namespace gs::platform {
 enum class Key {
     Left, Right, Up, Down,
     Space, LCtrl, LAlt, LShift,
-    Tab, Enter, Escape, Backspace,
-    S, L, F, E, R, G, D, N,
+    Tab, Enter, Escape, Backspace, Backslash,
+    Q, W, S, L, F, E, R, G, D, N,
     Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
     Count
 };

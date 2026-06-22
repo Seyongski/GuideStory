@@ -1,0 +1,6 @@
+GSKEYS 1
+Jump Alt
+Attack -
+PickUp -
+Skill1 -
+END
