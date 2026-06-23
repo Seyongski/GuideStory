@@ -44,6 +44,10 @@ public:
     // 맵 격자 크기를 배경 픽셀 크기를 덮도록 맞춘다(올림). 배경 크기는 호출측이 렌더에서 구해 전달.
     void FitToBackground(int wpx, int hpx);
 
+    // 렌더에서 측정한 배경 원본 픽셀 크기를 맵에 반영한다(저장 시 BGSIZE로 기록 → 게임이 정확한 WorldBounds).
+    // 배경이 맵의 카메라/시각 범위 권위이므로, 알게 되는 즉시 맵에 심어 둔다.
+    void SetBackgroundSize(math::Vector2D px) { m_map.SetBackgroundSize(px); }
+
     // 오브젝트 프리셋 선택 → Object 모드로 전환(우측 팔레트가 호출). 현재 프리셋 조회.
     void SelectObject(int preset);
     int  CurrentObject() const { return m_currentObject; }

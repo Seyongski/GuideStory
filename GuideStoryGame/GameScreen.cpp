@@ -93,17 +93,9 @@ void GameScreen::TryEnterPortal() {
 }
 
 void GameScreen::Render(platform::IRenderDevice& r) {
-    r.Clear({100, 149, 237, 255}); // 하늘색
+    r.Clear({100, 149, 237, 255}); // 하늘색(배경 PNG가 못 덮는 가장자리 폴백)
 
-    // 배경 PNG(맵에 설정 시) — 월드 원점에 원본 픽셀 1:1로, 타일/플레이어 뒤에.
-    if (!m_map.Background().empty()) {
-        const platform::TextureId bg = r.LoadTexture(platform::BackgroundPath(m_map.Background()));
-        if (bg != platform::kInvalidTexture) {
-            const math::Vector2D sz = r.TextureSize(bg);
-            r.DrawTexture(bg, m_camera.WorldRectToScreen({0.0f, 0.0f, sz.x, sz.y}));
-        }
-    }
-
+    // 배경 PNG → 타일 → 오브젝트 → 풋홀드/포탈은 공유 WorldRenderer가 단일 출처로 그린다(에디터와 동일).
     core::RenderWorld(r, m_camera, m_map);
     RenderPlayer(r);
 }

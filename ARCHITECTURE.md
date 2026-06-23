@@ -194,8 +194,9 @@ $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Curr
 - DLL은 PostBuildEvent가 출력 폴더로 자동 복사(Debug: `SDL2d.dll`, `SDL2_ttfd.dll`, `SDL2_imaged.dll`).
 - **텍스처**: `IRenderDevice::LoadTexture(경로)`가 PNG를 로드·캐시(경로→핸들), `DrawTexture`로 그린다.
   `SDL_Texture`는 RAII 커스텀 deleter로 관리하고 렌더러보다 먼저 해제한다(ADR-002). 배경 이미지는 `assets/backgrounds/`.
-- **배경/오브젝트**: 배경 PNG와 배치 오브젝트(건물 등)는 공유 `core::RenderWorld`가 그린다 → 에디터와 게임이 동일하게 표시.
+- **배경/오브젝트**: 배경 PNG와 배치 오브젝트(건물 등)는 공유 `core::RenderWorld`가 **단일 출처**로 그린다 → 에디터와 게임이 동일하게 표시(게임이 배경을 따로 그리지 않는다).
   오브젝트는 1차로 단색 프리셋(`core::ObjectPalette` — 크기 타일 단위 + 색)이며, 추후 스프라이트로 확장. 충돌은 풋홀드가 담당(ADR-008).
+- **배경이 카메라/시각 범위의 권위**: 배경이 설정된 맵은 `Map::WorldBounds()`가 배경 원본 픽셀 크기(맵 파일 `BGSIZE`)를 반환한다(없으면 타일 격자로 폴백). 타일 격자(32배수 양자화)가 배경보다 커도 배경 밖 빈 영역이 카메라에 노출되지 않는다. 배경 크기는 에디터가 렌더에서 측정해 맵에 심고 저장 시 기록한다. (데드존/스크롤박스 카메라는 추후 도입 — [docs/design-patterns.md](docs/design-patterns.md) 결정 절차에 따름.)
 - **MapleStory 리소스**: WzComparerR로 추출한 배경/스프라이트는 WZ `.img` 노드 포맷이라 SDL_image로 직접 못 읽는다 — **PNG로 export** 후 `assets/`에 둔다(`.img/.wz` 직접 파싱은 별도 과제).
 - WinSock 링크는 3단계 net 모듈 착수 시 추가 → [tech-debt-tracker.md](tech-debt-tracker.md) D-005.
 

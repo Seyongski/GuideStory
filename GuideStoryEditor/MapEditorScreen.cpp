@@ -160,10 +160,14 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
     r.Clear(kSky);
 
     // 배경 픽셀 크기를 "맞춤" 버튼용으로 캐시(실제 그리기는 공유 WorldRenderer가 담당 → 게임도 동일).
+    // 동시에 맵에도 심는다 → 저장 시 BGSIZE로 기록되고, 배경이 카메라/시각 범위 권위가 된다.
     m_bgSize = {0.0f, 0.0f};
     if (!m_editor->Background().empty()) {
         const platform::TextureId bg = r.LoadTexture(platform::BackgroundPath(m_editor->Background()));
-        if (bg != platform::kInvalidTexture) m_bgSize = r.TextureSize(bg);
+        if (bg != platform::kInvalidTexture) {
+            m_bgSize = r.TextureSize(bg);
+            m_editor->SetBackgroundSize(m_bgSize);
+        }
     }
 
     core::RenderWorld(r, m_camera, m_map); // 배경 → 타일 → 오브젝트 → 풋홀드/포탈

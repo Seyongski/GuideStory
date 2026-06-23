@@ -39,10 +39,22 @@ public:
 
     // 배경 이미지 파일명(assets/backgrounds 기준, 공백 없는 파일명). 비어 있으면 배경 없음.
     const std::string& Background() const        { return m_background; }
-    void               SetBackground(std::string name) { m_background = std::move(name); }
+    void               SetBackground(std::string name) {
+        if (name != m_background) m_bgSize = {}; // 배경이 바뀌면 크기 미상으로 → 다시 측정 필요
+        m_background = std::move(name);
+    }
 
-    // 월드 경계(픽셀): 타일 격자 W×H × 타일크기. 카메라/플레이어 클램프와 경계 렌더에 쓴다.
+    // 배경 PNG의 원본 픽셀 크기. 0이면 미상(렌더 시 측정해 채운다). 배경이 맵의 시각·카메라 범위 권위다.
+    math::Vector2D BackgroundSize() const           { return m_bgSize; }
+    void           SetBackgroundSize(math::Vector2D s) { m_bgSize = s; }
+
+    // 월드 경계(픽셀): 카메라/플레이어 클램프와 경계 렌더에 쓴다.
+    //  - 배경이 있고 크기를 알면 그 배경 사각형이 권위다(타일 격자가 배경보다 커도 배경 밖
+    //    빈 영역이 카메라에 노출되지 않게 — ADR-008 시각/충돌 이중관리의 정렬, 사용자 결정).
+    //  - 배경이 없으면(또는 크기 미상이면) 타일 격자 W×H × 타일크기로 폴백한다.
     math::Rect WorldBounds() const {
+        if (!m_background.empty() && m_bgSize.x > 0.0f && m_bgSize.y > 0.0f)
+            return {0.0f, 0.0f, m_bgSize.x, m_bgSize.y};
         const float s = static_cast<float>(m_tiles.TileSize());
         return {0.0f, 0.0f, m_tiles.Width() * s, m_tiles.Height() * s};
     }
@@ -58,6 +70,7 @@ private:
     std::vector<Portal>    m_portals;
     std::vector<MapObject> m_objects;             // 배치된 오브젝트(건물 등)
     std::string            m_background;           // 배경 PNG 파일명(없으면 빈 문자열)
+    math::Vector2D         m_bgSize{};             // 배경 원본 픽셀 크기(0 = 미상)
 };
 
 } // namespace gs::world

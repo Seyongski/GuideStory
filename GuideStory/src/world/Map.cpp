@@ -10,6 +10,7 @@
 //   SIZE <w> <h>
 //   SPAWN <x> <y>
 //   BACKGROUND <파일명>                  (assets/backgrounds 기준; 빈 값은 "-")
+//   BGSIZE <w> <h>                        (선택; 배경 원본 픽셀 크기 = 맵의 카메라/시각 범위 권위)
 //   TILES
 //   <w*h개의 타일 번호, 공백/줄바꿈 구분>
 //   FOOTHOLDS <count>
@@ -37,6 +38,9 @@ void Map::Save(const std::string& path) const {
     out << "SIZE " << m_tiles.Width() << " " << m_tiles.Height() << "\n";
     out << "SPAWN " << m_spawn.x << " " << m_spawn.y << "\n";
     out << "BACKGROUND " << (m_background.empty() ? kEmptyTarget : m_background.c_str()) << "\n";
+    // 배경 픽셀 크기(알 때만). 배경이 맵의 카메라/시각 범위 권위 → 로드 후 즉시(첫 프레임 전) 정확한 WorldBounds.
+    if (!m_background.empty() && m_bgSize.x > 0.0f && m_bgSize.y > 0.0f)
+        out << "BGSIZE " << m_bgSize.x << " " << m_bgSize.y << "\n";
 
     out << "TILES\n";
     const auto& raw = m_tiles.Raw();
@@ -87,6 +91,7 @@ void Map::Load(const std::string& path) {
     std::vector<Portal> portals;
     std::vector<MapObject> objects;
     std::string background;
+    math::Vector2D bgSize{};
 
     // 태그 구동 파싱: 다음 토큰을 보고 섹션을 분기한다. END 또는 EOF에서 종료.
     while (in >> tag) {
@@ -106,6 +111,9 @@ void Map::Load(const std::string& path) {
             std::string b;
             if (!(in >> b)) throw std::runtime_error("맵 형식 오류: BACKGROUND");
             background = (b == kEmptyTarget) ? std::string() : b;
+        } else if (tag == "BGSIZE") {
+            if (!(in >> bgSize.x >> bgSize.y))
+                throw std::runtime_error("맵 형식 오류: BGSIZE");
         } else if (tag == "TILES") {
             if (!haveSize || tileSize <= 0)
                 throw std::runtime_error("맵 형식 오류: TILES 앞에 TILESIZE/SIZE 필요");
@@ -163,6 +171,7 @@ void Map::Load(const std::string& path) {
     m_portals = std::move(portals);
     m_objects = std::move(objects);
     m_background = std::move(background);
+    m_bgSize = bgSize;
 }
 
 } // namespace gs::world
