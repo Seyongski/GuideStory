@@ -47,7 +47,7 @@ GuideStory/
 ├─ GuideStory/                     # ▶ GuideStoryEngine (정적 라이브러리)
 │  ├─ GuideStory.vcxproj
 │  └─ src/
-│     ├─ core/        # 카메라, 월드 렌더(RenderWorld), Ui(메뉴/툴바 위젯) 등 공용 (SDL 비의존)
+│     ├─ core/        # 카메라, 월드 렌더(RenderWorld), Ui(메뉴/툴바 위젯), HostLoop(앱 공통 프레임 골격) 등 공용 (SDL 비의존)
 │     ├─ math/        # Vector2D, Rect (SDL 비의존 — ADR-006)
 │     ├─ platform/    # RenderDevice / Window / 입력 인터페이스 (+ SDL2 구현), FileDialog(네이티브 열기·저장 + 자산 경로)
 │     ├─ world/       # TileMap·Foothold·Map(+배경 PNG·MapObject)·MapScaffold (ADR-008)
@@ -141,7 +141,7 @@ GuideStory/
 ### ADR-009 — 에디터/런타임 실행파일 분리 (공통 엔진 정적 라이브러리)
 - **결정**: 편집과 플레이를 **두 개의 실행파일**로 분리한다. `GuideStoryEngine`(정적 라이브러리)이 공통 코드(math/platform/world/physics/core/editor)를 담고, `GuideStoryEditor.exe`(편집·저장)와 `GuideStoryGame.exe`(맵 파일 로드·플레이)가 각자 `main` + 호스트 루프를 갖는다. 두 앱은 라이브러리를 통해 `SDLWindow`/`SDLRenderDevice`를 공유한다. 월드 렌더(`core::RenderWorld`)와 기본 맵 빌더(`world::BuildDefaultMap`), GUI 위젯(`core::Ui` — 메뉴/툴바)은 라이브러리로 추출해 두 앱이 공유한다(중복 제거). 에디터도 게임과 같은 화면(Screen) 골격을 갖는다: 선택 화면(런처)에서 맵/플레이어/스킬/몬스터/NPC 에디터로 분기하고, 각 에디터는 빈 화면에서 새로 만들기·열기로 시작한다.
 - **이유**: 런타임 빌드에 편집 UI/툴 코드를 포함하지 않는다(관심사 분리·배포 표면 축소). 에디터는 추후 몬스터/스킬 배치 등 "변경 가능한 리소스" 편집의 home이 된다. 데이터(맵 파일)가 두 프로그램의 유일한 계약이 되어 데이터 주도(ADR-005)와 정렬된다.
-- **트레이드오프**: 솔루션이 1→3 프로젝트로 늘고 빌드 설정(SDL include/lib, DLL 복사, vcpkg 매니페스트 경로 참조)이 앱마다 중복된다. 공통 호스트 루프 코드(타이밍·dt 클램프)가 두 앱에 약간 중복된다.
+- **트레이드오프**: 솔루션이 1→3 프로젝트로 늘고 빌드 설정(SDL include/lib, DLL 복사, vcpkg 매니페스트 경로 참조)이 앱마다 중복된다. ~~공통 호스트 루프 코드(타이밍·dt 클램프)가 두 앱에 약간 중복된다.~~ → **상환됨**: 타이밍·dt 클램프·폴·Present 골격을 `core::HostLoop`(Template Method)으로 추출, 두 앱은 `Frame()`만 구현한다. dt 클램프 상수가 단일 출처가 됨. (설계 패턴 적용 근거: [docs/design-patterns.md](docs/design-patterns.md) §2.4)
 - **증명 과제**: 런타임 바이너리가 에디터 코드에 의존하지 않음을 보장. 데이터 파일만으로 에디터↔게임이 연결됨을 검증(에디터 저장 → 게임 로드).
 
 ## 5. 증명 과제 대시보드 (지침 지표 추적)
@@ -203,6 +203,7 @@ $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Curr
 
 - 제품 정의: [PRODUCT.md](PRODUCT.md)
 - 단계 로드맵: [PLANS.md](PLANS.md)
+- 디자인 패턴 카탈로그·적용 지침: [docs/design-patterns.md](docs/design-patterns.md)
 - 메카닉 구현: [docs/mechanics-harness.md](docs/mechanics-harness.md)
 - 안정성·예외 정책: [RELIABILITY.md](RELIABILITY.md)
 - 기술 부채: [tech-debt-tracker.md](tech-debt-tracker.md)
