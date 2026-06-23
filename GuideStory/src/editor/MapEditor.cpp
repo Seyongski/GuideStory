@@ -378,22 +378,24 @@ void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) cons
     const float s = static_cast<float>(tm.TileSize());
 
     if (m_showGrid && s > 0.0f) {
-        const math::Vector2D topLeft = cam.ScreenToWorld({0.0f, 0.0f});
+        // 격자는 뷰포트(툴바 아래 영역) 안에만 그린다.
+        const math::Rect vp = cam.ViewportScreenRect();
+        const math::Vector2D topLeft = cam.ScreenToWorld({vp.x, vp.y});
         const platform::Color grid{255, 255, 255, 40};
-        const int colsX = static_cast<int>(cam.ViewW() / s) + 2;
-        const int colsY = static_cast<int>(cam.ViewH() / s) + 2;
+        const int colsX = static_cast<int>(vp.w / s) + 2;
+        const int colsY = static_cast<int>(vp.h / s) + 2;
         const int startX = static_cast<int>(std::floor(topLeft.x / s));
         const int startY = static_cast<int>(std::floor(topLeft.y / s));
 
         for (int i = 0; i <= colsX; ++i) {
             const float wx = (startX + i) * s;
             const float sx = cam.WorldToScreen({wx, 0.0f}).x;
-            r.DrawLine({sx, 0.0f}, {sx, cam.ViewH()}, grid);
+            r.DrawLine({sx, vp.y}, {sx, vp.Bottom()}, grid);
         }
         for (int j = 0; j <= colsY; ++j) {
             const float wy = (startY + j) * s;
             const float sy = cam.WorldToScreen({0.0f, wy}).y;
-            r.DrawLine({0.0f, sy}, {cam.ViewW(), sy}, grid);
+            r.DrawLine({vp.x, sy}, {vp.Right(), sy}, grid);
         }
     }
 
@@ -457,7 +459,7 @@ void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) cons
             case TextTarget::None:         break;
         }
         r.DrawText(std::string(prompt) + m_textBuffer + "_",
-                   {8.0f, cam.ViewH() - 40.0f}, 24.0f, {255, 240, 150, 255});
+                   {8.0f, cam.ViewportScreenRect().Bottom() - 40.0f}, 24.0f, {255, 240, 150, 255});
     }
 }
 

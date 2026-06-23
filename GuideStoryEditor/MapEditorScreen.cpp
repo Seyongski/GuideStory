@@ -36,7 +36,9 @@ int ModeToToolIndex(editor::EditMode m) {
 }
 } // namespace
 
-MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH) {
+// 카메라 뷰포트는 상단 툴바(kBarH) 아래 영역. 그래서 월드가 툴바에 가리지 않고
+// 맨 윗부분까지 보이며 편집 가능하다(게임은 오프셋 0으로 전체 화면 그대로).
+MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH - kBarH, 0.0f, kBarH) {
     m_emptyMenu.Add("새로 만들기");
     m_emptyMenu.Add("열기");
     m_emptyMenu.Add("← 메뉴로");

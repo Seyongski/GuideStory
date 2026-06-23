@@ -20,8 +20,9 @@ platform::Color TileColor(world::TileId id) {
 } // namespace
 
 void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map& map) {
-    const float viewW = cam.ViewW();
-    const float viewH = cam.ViewH();
+    // 뷰포트(월드를 그리는 화면 영역). 오프셋이 있어도(에디터 툴바) 올바르게 컬링하려면
+    // 0/viewW가 아니라 이 사각형과의 교차로 판정해야 한다.
+    const math::Rect vp = cam.ViewportScreenRect();
 
     // 배경 PNG(맵에 설정 시) — 월드 원점에 원본 픽셀 1:1로(왜곡 없음), 모든 것 뒤에.
     if (!map.Background().empty()) {
@@ -38,9 +39,7 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
             const world::TileId id = tm.At(x, y);
             if (id == world::kEmptyTile) continue;
             const math::Rect sr = cam.WorldRectToScreen(tm.CellRect(x, y));
-            // 화면 밖 컬링.
-            if (sr.x > viewW || sr.y > viewH || sr.x + sr.w < 0.0f || sr.y + sr.h < 0.0f)
-                continue;
+            if (!sr.Intersects(vp)) continue; // 뷰포트 밖 컬링
             r.FillRect(sr, TileColor(id));
         }
     }
@@ -51,8 +50,7 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
         const ObjectPreset& pr = ObjectPresetAt(o.preset);
         const math::Rect sr = cam.WorldRectToScreen(
             {o.pos.x, o.pos.y, pr.wTiles * ts, pr.hTiles * ts});
-        if (sr.x > viewW || sr.y > viewH || sr.x + sr.w < 0.0f || sr.y + sr.h < 0.0f)
-            continue; // 화면 밖 컬링
+        if (!sr.Intersects(vp)) continue; // 뷰포트 밖 컬링
         r.FillRect(sr, pr.color);
         r.DrawRect(sr, {0, 0, 0, 120}); // 외곽선
     }
