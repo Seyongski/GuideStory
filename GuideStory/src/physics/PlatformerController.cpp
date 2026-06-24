@@ -39,9 +39,15 @@ void PlatformerController::Update(const MoveIntent& in, const world::FootholdMap
     }
 
     // --- 위치 적분 ---
+    const float prevFeetX = m_pos.x;
     const float prevFeetY = m_pos.y;
     m_pos.x += m_vel.x * dt;
     m_pos.y += m_vel.y * dt;
+
+    // --- 벽 막힘: 수직 풋홀드를 가로지르면 그 앞에서 멈춘다(수평 속도 제거) ---
+    const float blockedX = footholds.BlockHorizontal(
+        prevFeetX, m_pos.x, m_cfg.bodyHalfW, m_pos.y - m_cfg.bodyHeight, m_pos.y);
+    if (blockedX != m_pos.x) { m_pos.x = blockedX; m_vel.x = 0.0f; }
 
     // --- 착지/보행 판정 ---
     if (m_grounded) {

@@ -55,11 +55,14 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
         r.DrawRect(sr, {0, 0, 0, 120}); // 외곽선
     }
 
-    // 풋홀드(충돌선) — 디버그 초록선.
+    // 풋홀드(충돌선) — 바닥=초록, 벽(수직)=주황으로 구분.
     for (const auto& fh : map.Footholds().All()) {
         const math::Vector2D a = cam.WorldToScreen(fh.p1);
         const math::Vector2D b = cam.WorldToScreen(fh.p2);
-        r.DrawLine(a, b, {60, 220, 90, 255});
+        const platform::Color c = fh.IsWall()
+            ? platform::Color{240, 140, 40, 255}   // 벽 = 주황
+            : platform::Color{60, 220, 90, 255};   // 바닥 = 초록
+        r.DrawLine(a, b, c);
     }
 
     // 포탈 — 문 모양 사각형(pos = 바닥 중심). 연결 여부로 색 구분.

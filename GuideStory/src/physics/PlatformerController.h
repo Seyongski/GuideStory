@@ -16,6 +16,10 @@ struct PlatformerConfig {
     float airAccel     = 1800.0f; // 공중 제어(약하게)
     float friction     = 3200.0f; // 지상 마찰 감속
     float jumpSpeed    = 730.0f;  // 점프 초기 상승속도(임펄스)
+    // 벽 막힘 충돌용 몸통 크기(발 기준). GameScreen 렌더 박스(28x48)와 일치시킨다.
+    // 인스턴스별(몬스터는 다른 크기)이라 config에 둔다.
+    float bodyHalfW    = 14.0f;   // 좌우 반폭
+    float bodyHeight   = 48.0f;   // 발 위로의 키
 };
 
 // 이번 프레임의 이동 의도. 게임 층이 platform::Input을 번역해 채운다.

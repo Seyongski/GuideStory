@@ -23,6 +23,11 @@ public:
     // 보행 중 발밑 풋홀드: x를 범위에 포함하고 표면이 feetY ±tol 이내인 것. 없으면 nullptr.
     const Foothold* GroundAt(float x, float feetY, float tol) const;
 
+    // 수평 이동 막힘(벽): 폭 2*halfW, 수직범위 [topY,bottomY]인 몸통이 prevX→newX로
+    // 움직일 때 수직 벽 풋홀드(IsWall)를 가로지르면 벽에 막힌 x를 반환. 안 막히면 newX.
+    // 플레이어·몬스터가 같은 컨트롤러를 쓰므로 한 군데서 둘 다 막힌다.
+    float BlockHorizontal(float prevX, float newX, float halfW, float topY, float bottomY) const;
+
     const Foothold* ById(int id) const;
 
 private:

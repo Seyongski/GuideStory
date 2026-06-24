@@ -38,6 +38,27 @@ const Foothold* FootholdMap::GroundAt(float x, float feetY, float tol) const {
     return best;
 }
 
+float FootholdMap::BlockHorizontal(float prevX, float newX, float halfW,
+                                   float topY, float bottomY) const {
+    float result = newX;
+    for (const auto& fh : m_footholds) {
+        if (!fh.IsWall()) continue;
+        const float xw = fh.p1.x;
+        const float wMinY = std::min(fh.p1.y, fh.p2.y);
+        const float wMaxY = std::max(fh.p1.y, fh.p2.y);
+        // 수직 겹침: 몸통 [topY,bottomY]가 벽 세로범위와 겹쳐야 막는다(아래/위로 빗나가면 통과).
+        if (bottomY <= wMinY || topY >= wMaxY) continue;
+        if (newX > prevX) {                       // 오른쪽으로 이동: 오른쪽 모서리로 충돌
+            if (prevX + halfW <= xw && newX + halfW > xw)
+                result = std::min(result, xw - halfW);
+        } else if (newX < prevX) {                // 왼쪽으로 이동: 왼쪽 모서리로 충돌
+            if (prevX - halfW >= xw && newX - halfW < xw)
+                result = std::max(result, xw + halfW);
+        }
+    }
+    return result;
+}
+
 const Foothold* FootholdMap::ById(int id) const {
     for (const auto& fh : m_footholds) {
         if (fh.id == id) return &fh;
