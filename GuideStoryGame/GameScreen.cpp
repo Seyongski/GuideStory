@@ -10,12 +10,14 @@
 
 namespace gs::app {
 
-GameScreen::GameScreen(const core::InputMap& bindings, std::string mapPath)
-    : m_bindings(bindings), m_camera(kViewW, kViewH) {
+GameScreen::GameScreen(const core::InputMap& bindings, core::PlayerState& playerState,
+                       std::string mapPath)
+    : m_bindings(bindings), m_playerState(playerState), m_camera(kViewW, kViewH) {
     // 에디터가 저장한 맵을 로드한다(자산 폴더 assets/maps에서 해석).
     // 실패하면 기본 맵으로 폴백하고 계속 실행한다.
     try {
         m_map.Load(platform::MapPath(mapPath));
+        m_playerState.SetLastMap(mapPath); // 진입한 맵 기억(다음 실행 시 이 맵 스폰에서 시작)
     } catch (const std::exception& e) {
         std::fprintf(stderr, "맵 로드 실패(%s) — 기본 맵으로 폴백: %s\n",
                      mapPath.c_str(), e.what());
@@ -23,7 +25,7 @@ GameScreen::GameScreen(const core::InputMap& bindings, std::string mapPath)
     }
 
     m_player.SetPosition(m_map.Spawn());
-    m_camera.Follow(m_player.Position());
+    m_camera.SnapTo(m_player.Position()); // 시작은 플레이어에 맞춰 스냅(데드존 무시)
     m_camera.ClampToBounds(m_map.WorldBounds());
 }
 
@@ -45,7 +47,10 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
     // 월드 경계: 좌우 벽으로 가두고, 바닥 아래로 떨어지면 스폰으로 복귀.
     const math::Rect wb = m_map.WorldBounds();
     m_player.ClampX(wb.Left(), wb.Right());
-    if (m_player.Position().y > wb.Bottom() + 200.0f) m_player.SetPosition(m_map.Spawn());
+    if (m_player.Position().y > wb.Bottom() + 200.0f) {
+        m_player.SetPosition(m_map.Spawn());
+        m_camera.SnapTo(m_player.Position()); // 추락 부활도 순간이동 → 스냅
+    }
 
     // 포탈: 겹친 상태에서 ↑ 키로 대상 맵 이동.
     if (in.WasPressed(platform::Key::Up)) TryEnterPortal();
@@ -76,6 +81,7 @@ void GameScreen::TryEnterPortal() {
 
     try {
         m_map.Load(platform::MapPath(targetMap)); // 실패 시 예외 → m_map 불변(강한 보장)
+        m_playerState.SetLastMap(targetMap); // 전환한 맵 기억(다음 실행 시 이 맵에서 시작)
     } catch (const std::exception& e) {
         std::fprintf(stderr, "포탈 대상 맵 로드 실패(%s): %s\n", targetMap.c_str(), e.what());
         return;
@@ -88,7 +94,7 @@ void GameScreen::TryEnterPortal() {
             if (p.id == targetPortal) { dest = p.pos; break; }
     }
     m_player.SetPosition(dest);
-    m_camera.Follow(dest);
+    m_camera.SnapTo(dest); // 포탈 이동은 순간이동 → 스냅(데드존 추적은 다음 프레임부터)
     m_camera.ClampToBounds(m_map.WorldBounds());
 }
 

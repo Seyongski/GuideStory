@@ -4,6 +4,7 @@
 
 #include "core/Camera.h"
 #include "core/InputMap.h"
+#include "core/PlayerState.h"
 #include "physics/PlatformerController.h"
 #include "world/Map.h"
 
@@ -17,8 +18,10 @@ namespace gs::app {
 class GameScreen final : public Screen {
 public:
     // bindings: 행동→키 매핑(App이 소유, 키세팅이 편집). 입력은 이 매핑을 통해 질의한다.
+    // playerState: App 소유. 맵 진입/포탈 전환 시 마지막 맵을 갱신·저장한다(다음 실행에 복원).
     // mapPath: 맵 파일명(자산 폴더 assets/maps에 해석). 로드 실패 시 기본 맵으로 폴백한다.
-    explicit GameScreen(const core::InputMap& bindings, std::string mapPath = "field01.gsmap");
+    GameScreen(const core::InputMap& bindings, core::PlayerState& playerState,
+               std::string mapPath = "field01.gsmap");
 
     SceneId Update(const platform::Input& in, float dt) override;
     void Render(platform::IRenderDevice& r) override;
@@ -28,7 +31,8 @@ private:
     math::Rect PlayerRect() const;
     void TryEnterPortal(); // 겹친 포탈이 있으면 대상 맵으로 이동
 
-    const core::InputMap&         m_bindings; // App 소유 — 수명은 App이 보장
+    const core::InputMap&         m_bindings;    // App 소유 — 수명은 App이 보장
+    core::PlayerState&            m_playerState; // App 소유 — 마지막 맵 기억
     world::Map                    m_map;
     physics::PlatformerController  m_player;
     core::Camera                  m_camera;

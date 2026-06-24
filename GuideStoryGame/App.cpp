@@ -14,17 +14,27 @@ App::App(platform::IWindow& window, platform::IRenderDevice& renderer)
       m_screen(MakeScreen(SceneId::Login)) // 시작은 로그인창
 {
     m_bindings.Load(BindingsPath()); // 저장된 키 설정이 있으면 적용(없으면 기본값 유지)
+    m_playerState.Load(PlayerStatePath()); // 마지막 맵 복원(없으면 기본 맵으로 시작)
 }
 
 std::string App::BindingsPath() {
     return platform::AssetsDir("config") + "/keybindings.txt";
 }
 
+std::string App::PlayerStatePath() {
+    return platform::AssetsDir("config") + "/playerstate.txt";
+}
+
 std::unique_ptr<Screen> App::MakeScreen(SceneId id) {
     switch (id) {
         case SceneId::Login:    return std::make_unique<LoginScreen>();
         case SceneId::MainMenu: return std::make_unique<MainMenuScreen>();
-        case SceneId::InGame:   return std::make_unique<GameScreen>(m_bindings); // 기본 맵 field01.gsmap
+        case SceneId::InGame: {
+            // 시작 맵 = 마지막으로 있던 맵(저장돼 있으면), 없으면 기본 맵.
+            const std::string startMap =
+                m_playerState.LastMap().empty() ? "crystalgarden.gsmap" : m_playerState.LastMap();
+            return std::make_unique<GameScreen>(m_bindings, m_playerState, startMap);
+        }
         default:                return std::make_unique<LoginScreen>();
     }
 }
