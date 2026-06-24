@@ -17,8 +17,24 @@ public:
     Camera(float viewW, float viewH, float offsetX = 0.0f, float offsetY = 0.0f)
         : m_viewW(viewW), m_viewH(viewH), m_offX(offsetX), m_offY(offsetY) {}
 
-    void Follow(math::Vector2D target) { m_center = target; }
-    void Move(math::Vector2D delta)    { m_center += delta; } // 에디터 패닝
+    // 카메라를 target에 즉시 맞춘다(데드존 무시). 스폰·포탈·부활 등 순간이동에 사용.
+    void SnapTo(math::Vector2D target) { m_center = target; }
+
+    // 데드존 추적: target이 중심 기준 데드존 사각형 '밖으로' 나간 만큼만 카메라가 따라간다.
+    // 안에 있으면 카메라 정지 — 플레이어가 화면 중앙 영역에서 움직여도 화면이 흔들리지 않는다.
+    void Follow(math::Vector2D target) {
+        const float dx = target.x - m_center.x;
+        if (dx >  m_deadHalfW)      m_center.x += dx - m_deadHalfW;
+        else if (dx < -m_deadHalfW) m_center.x += dx + m_deadHalfW;
+        const float dy = target.y - m_center.y;
+        if (dy >  m_deadHalfH)      m_center.y += dy - m_deadHalfH;
+        else if (dy < -m_deadHalfH) m_center.y += dy + m_deadHalfH;
+    }
+
+    void Move(math::Vector2D delta) { m_center += delta; } // 에디터 패닝
+
+    // 데드존 반-크기(화면 픽셀) 주입. 기본은 전역 손맛값. 맵별 카메라가 필요해지면 여기로.
+    void SetDeadzone(float halfW, float halfH) { m_deadHalfW = halfW; m_deadHalfH = halfH; }
 
     // 뷰가 월드 경계 밖으로 나가지 않게 center를 보정한다(무한맵 느낌 해소).
     // 월드가 뷰보다 작은 축은 월드 중앙에 고정.
@@ -52,11 +68,18 @@ public:
     }
 
 private:
+    // 데드존 기본값(화면 픽셀, 중심 기준 반-크기). 게임 손맛이라 전역 동일 — 맵 데이터가 아니다.
+    // 맵별 override가 필요한 통증(보스방 카메라 고정 등)이 생기면 그때 .gsmap 직렬화로 승격.
+    static constexpr float kDeadzoneHalfW = 110.0f;
+    static constexpr float kDeadzoneHalfH = 90.0f;
+
     float m_viewW;
     float m_viewH;
     float m_offX = 0.0f;
     float m_offY = 0.0f;
     math::Vector2D m_center{};
+    float m_deadHalfW = kDeadzoneHalfW;
+    float m_deadHalfH = kDeadzoneHalfH;
 };
 
 } // namespace gs::core
