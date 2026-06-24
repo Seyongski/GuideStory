@@ -116,6 +116,13 @@ void MapEditor::RefreshNextIds() {
     m_selectedPortal = -1;
 }
 
+void MapEditor::RecomputeNextPortalId() {
+    int maxPt = 0;
+    for (const auto& p : m_map.Portals())
+        if (p.id > maxPt) maxPt = p.id;
+    m_nextPortalId = maxPt + 1; // 포탈이 0개면 1로 리셋 → 다시 #1부터
+}
+
 void MapEditor::NewMap() {
     // 먼저 이름(저장 위치)을 정한다. 취소하면 현재 맵을 그대로 둔다.
     const auto path = platform::SaveFileDialog("새 맵 만들기", "GuideStory 맵", "*.gsmap", "gsmap",
@@ -315,32 +322,40 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, b
             break;
         }
         case EditMode::Portal: {
+            // 좌클릭: 빈 곳=새 포탈, 기존 포탈=선택만. (텍스트 입력에 가두지 않아 마우스가 계속 동작)
             if (in.MousePressed(MouseButton::Left)) {
                 const int hit = PortalAt(worldMouse);
                 if (hit >= 0) {
-                    // 기존 포탈 선택 → 대상 입력 열기(현재 값 미리 채움).
                     m_selectedPortal = hit;
-                    const auto& p = m_map.Portals()[hit];
-                    const std::string init = (p.targetMap.empty() ? std::string("-") : p.targetMap)
-                                           + " " + std::to_string(p.targetPortal);
-                    BeginTextEntry(TextTarget::PortalTarget, init);
+                    m_status = "포탈 #" + std::to_string(m_map.Portals()[hit].id) +
+                               " 선택 — [Enter] 대상 지정 · 우클릭 삭제";
                 } else {
-                    // 빈 곳 → 새 포탈(대상 비움).
                     world::Portal p;
                     p.id = m_nextPortalId++;
                     p.pos = SnapToGrid(worldMouse);
                     m_map.Portals().push_back(p);
                     m_selectedPortal = static_cast<int>(m_map.Portals().size()) - 1;
-                    m_status = "포탈 추가 #" + std::to_string(p.id) + " (클릭해 대상 지정)";
+                    m_status = "포탈 추가 #" + std::to_string(p.id) + " — [Enter] 대상 지정";
                 }
             }
+            // 우클릭: 커서 아래 포탈 삭제 + 다음 id 재계산(번호 누적 방지) + 선택 인덱스 보정.
             if (in.MousePressed(MouseButton::Right)) {
                 const int hit = PortalAt(worldMouse);
                 if (hit >= 0) {
                     m_map.Portals().erase(m_map.Portals().begin() + hit);
-                    if (m_selectedPortal == hit) m_selectedPortal = -1;
+                    if (m_selectedPortal == hit)      m_selectedPortal = -1;
+                    else if (m_selectedPortal > hit)  --m_selectedPortal; // 뒤 인덱스 당겨짐
+                    RecomputeNextPortalId();
                     m_status = "포탈 삭제";
                 }
+            }
+            // Enter: 선택된 포탈의 대상(맵 [포탈id]) 입력 열기.
+            if (in.WasPressed(Key::Enter) && m_selectedPortal >= 0 &&
+                m_selectedPortal < static_cast<int>(m_map.Portals().size())) {
+                const auto& p = m_map.Portals()[m_selectedPortal];
+                const std::string init = (p.targetMap.empty() ? std::string("-") : p.targetMap)
+                                       + " " + std::to_string(p.targetPortal);
+                BeginTextEntry(TextTarget::PortalTarget, init);
             }
             break;
         }

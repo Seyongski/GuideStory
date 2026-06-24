@@ -76,6 +76,7 @@ private:
     void BeginTextEntry(TextTarget target, std::string initial);
     void CommitText();
     void RefreshNextIds(); // 로드/새맵 후 다음 풋홀드·포탈 id를 최대값+1로 복원
+    void RecomputeNextPortalId(); // 포탈 삭제 후 다음 id를 최대값+1로 정리(번호 누적 방지)
 
     world::Map&    m_map;
     world::TileId  m_currentTile = 1;
