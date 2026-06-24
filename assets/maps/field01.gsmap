@@ -37,6 +37,6 @@ FOOTHOLDS 5
 PORTALS 3
 1 -288 192 0 -
 2 736 224 0 -
-3 576 256 0 -
+3 576 256 3 crystalgarden.gsmap
 OBJECTS 0
 END
