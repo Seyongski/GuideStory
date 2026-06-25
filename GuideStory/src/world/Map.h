@@ -21,6 +21,15 @@ struct MapObject {
     math::Vector2D pos{};      // 월드 좌상단(픽셀)
 };
 
+// 맵에 배치된 몬스터 스프라이트. 1차는 정지 스프라이트(단일 이미지)만 — FSM/이동/애니메이션은 후속(ADR-007).
+// sprite = assets/mob 기준 상대 경로(공백 없는 파일명). pos = 월드 바닥 중심(발 위치 → 풋홀드 위에 선다).
+// size = 표시 픽셀 크기(w,h); 0이면 텍스처 원본 크기를 쓴다.
+struct MapMob {
+    std::string    sprite;
+    math::Vector2D pos{};
+    math::Vector2D size{};
+};
+
 class Map {
 public:
     TileMap&            Tiles()           { return m_tiles; }
@@ -36,6 +45,9 @@ public:
 
     std::vector<MapObject>&       Objects()       { return m_objects; }
     const std::vector<MapObject>& Objects() const { return m_objects; }
+
+    std::vector<MapMob>&       Mobs()       { return m_mobs; }
+    const std::vector<MapMob>& Mobs() const { return m_mobs; }
 
     // 배경 이미지 파일명(assets/backgrounds 기준, 공백 없는 파일명). 비어 있으면 배경 없음.
     const std::string& Background() const        { return m_background; }
@@ -69,6 +81,7 @@ private:
     math::Vector2D      m_spawn{200.0f, 560.0f}; // 기본 스폰(v1 맵 하위호환)
     std::vector<Portal>    m_portals;
     std::vector<MapObject> m_objects;             // 배치된 오브젝트(건물 등)
+    std::vector<MapMob>    m_mobs;                 // 배치된 몬스터 스프라이트
     std::string            m_background;           // 배경 PNG 파일명(없으면 빈 문자열)
     math::Vector2D         m_bgSize{};             // 배경 원본 픽셀 크기(0 = 미상)
 };

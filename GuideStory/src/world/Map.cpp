@@ -19,6 +19,8 @@
 //   <id x y targetPortal targetMap>       (count줄; targetMap 빈 값은 "-")
 //   OBJECTS <count>
 //   <preset x y>                          (count줄; 단색 프리셋 인덱스 + 월드 좌상단)
+//   MOBS <count>
+//   <sprite x y w h>                      (count줄; assets/mob 상대경로 + 발 위치 + 표시 크기)
 //   END
 //
 // 로더는 태그 구동(tag-driven)이라 SPAWN/PORTALS가 없는 v1 파일도 그대로 읽는다
@@ -68,6 +70,12 @@ void Map::Save(const std::string& path) const {
         out << o.preset << " " << o.pos.x << " " << o.pos.y << "\n";
     }
 
+    out << "MOBS " << m_mobs.size() << "\n";
+    for (const auto& m : m_mobs) {
+        out << m.sprite << " " << m.pos.x << " " << m.pos.y << " "
+            << m.size.x << " " << m.size.y << "\n";
+    }
+
     out << "END\n";
 
     if (!out) throw std::runtime_error("맵 저장 실패(쓰기 중 오류): " + path);
@@ -90,6 +98,7 @@ void Map::Load(const std::string& path) {
     math::Vector2D spawn{200.0f, 560.0f};
     std::vector<Portal> portals;
     std::vector<MapObject> objects;
+    std::vector<MapMob> mobs;
     std::string background;
     math::Vector2D bgSize{};
 
@@ -157,6 +166,16 @@ void Map::Load(const std::string& path) {
                     throw std::runtime_error("맵 형식 오류: 오브젝트 데이터 부족");
                 objects.push_back(o);
             }
+        } else if (tag == "MOBS") {
+            int count = 0;
+            if (!(in >> count) || count < 0)
+                throw std::runtime_error("맵 형식 오류: MOBS");
+            for (int i = 0; i < count; ++i) {
+                MapMob m;
+                if (!(in >> m.sprite >> m.pos.x >> m.pos.y >> m.size.x >> m.size.y))
+                    throw std::runtime_error("맵 형식 오류: 몬스터 데이터 부족");
+                mobs.push_back(std::move(m));
+            }
         } else {
             throw std::runtime_error("맵 형식 오류: 알 수 없는 섹션 '" + tag + "'");
         }
@@ -170,6 +189,7 @@ void Map::Load(const std::string& path) {
     m_spawn = spawn;
     m_portals = std::move(portals);
     m_objects = std::move(objects);
+    m_mobs = std::move(mobs);
     m_background = std::move(background);
     m_bgSize = bgSize;
 }

@@ -6,9 +6,14 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace gs::platform {
 
@@ -143,33 +148,150 @@ math::Vector2D SDLRenderDevice::MeasureText(const std::string& utf8, float pixel
     return {static_cast<float>(w) * scale, pixelHeight};
 }
 
+namespace {
+// 애니메이션 한 프레임의 기본 지속(ms). GIF가 0/미지정 지연을 줄 때의 폴백.
+constexpr int kDefaultFrameMs = 100;
+
+// 확장자가 .gif인지(대소문자 무시). 애니메이션 디코드를 시도할지 판단용.
+bool HasGifExt(const std::string& path) {
+    if (path.size() < 4) return false;
+    const std::string ext = path.substr(path.size() - 4);
+    return (ext == ".gif" || ext == ".GIF" || ext == ".Gif");
+}
+
+// UTF-8 문자열 ↔ filesystem::path 변환(윈도우에서 한글 경로 보존; C++20 u8string 경유, deprecated u8path 회피).
+std::filesystem::path Utf8ToPath(const std::string& s) {
+    return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size()));
+}
+std::string PathToUtf8(const std::filesystem::path& p) {
+    const std::u8string u8 = p.u8string();
+    return std::string(u8.begin(), u8.end());
+}
+
+// 소문자 확장자(".png" 등). 비교용.
+std::string LowerExt(const std::filesystem::path& p) {
+    std::string e = PathToUtf8(p.extension());
+    std::transform(e.begin(), e.end(), e.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return e;
+}
+} // namespace
+
 TextureId SDLRenderDevice::LoadTexture(const std::string& path) {
     if (path.empty()) return kInvalidTexture;
     if (const auto it = m_textureCache.find(path); it != m_textureCache.end()) return it->second;
 
     // SDL은 경로를 UTF-8로 해석하고 윈도우에서 와이드로 변환한다(한글 경로 OK).
-    SDL_Surface* surf = IMG_Load(path.c_str());
-    if (!surf) {
-        std::fprintf(stderr, "이미지 로드 실패(%s): %s\n", path.c_str(), IMG_GetError());
-        m_textureCache[path] = kInvalidTexture; // 음수 캐시 — 매 프레임 재시도 방지
-        return kInvalidTexture;
+    LoadedImage img;
+
+    // 디렉터리 = PNG 프레임 시퀀스 애니메이션. 파일명이 "<시작ms>_<끝ms>.png"면 그 차이가 프레임 지속,
+    // 시작값으로 정렬한다(투명 PNG 시퀀스 = GIF 1비트 투명의 대안, 부드러운 알파). 규칙에 안 맞는 이름은
+    // 알파벳 순서 + 기본 지속으로 폴백.
+    std::error_code dec;
+    if (std::filesystem::is_directory(Utf8ToPath(path), dec)) {
+        struct FrameFile { long start; int durMs; std::string file; };
+        std::vector<FrameFile> ff;
+        for (const auto& e : std::filesystem::directory_iterator(Utf8ToPath(path), dec)) {
+            if (!e.is_regular_file() || LowerExt(e.path()) != ".png") continue;
+            const std::string stem = PathToUtf8(e.path().stem());
+            // "<시작>_<끝>" 파싱: '_' 앞뒤 정수. 규칙에 안 맞으면 폴백.
+            long a = 0, b = 0;
+            bool parsed = false;
+            if (const auto us = stem.find('_'); us != std::string::npos && us > 0) {
+                char* e1 = nullptr;
+                char* e2 = nullptr;
+                a = std::strtol(stem.c_str(), &e1, 10);
+                b = std::strtol(stem.c_str() + us + 1, &e2, 10);
+                parsed = (e1 == stem.c_str() + us) && (e2 != stem.c_str() + us + 1);
+            }
+            FrameFile f;
+            f.start = parsed ? a : static_cast<long>(ff.size());
+            f.durMs = (parsed && b > a) ? static_cast<int>(b - a) : kDefaultFrameMs;
+            f.file  = PathToUtf8(e.path());
+            ff.push_back(std::move(f));
+        }
+        std::sort(ff.begin(), ff.end(), [](const FrameFile& x, const FrameFile& y) {
+            return (x.start != y.start) ? x.start < y.start : x.file < y.file;
+        });
+        for (const auto& f : ff) {
+            SDL_Surface* fs = IMG_Load(f.file.c_str());
+            if (!fs) continue;
+            SDL_Texture* ft = SDL_CreateTextureFromSurface(m_renderer.get(), fs);
+            const int fw = fs->w, fh = fs->h;
+            SDL_FreeSurface(fs);
+            if (!ft) continue;
+            SDL_SetTextureBlendMode(ft, SDL_BLENDMODE_BLEND); // PNG 알파를 배경과 합성
+            img.frames.emplace_back(ft, &SDL_DestroyTexture);
+            img.delaysMs.push_back(f.durMs);
+            img.totalMs += f.durMs;
+            if (img.w == 0) { img.w = fw; img.h = fh; }
+        }
+        if (img.frames.empty())
+            std::fprintf(stderr, "프레임 폴더에 PNG 없음(%s)\n", path.c_str());
     }
-    SDL_Texture* raw = SDL_CreateTextureFromSurface(m_renderer.get(), surf);
-    SDL_FreeSurface(surf);
-    if (!raw) {
-        std::fprintf(stderr, "텍스처 생성 실패(%s): %s\n", path.c_str(), SDL_GetError());
-        m_textureCache[path] = kInvalidTexture;
-        return kInvalidTexture;
+
+    // 애니메이션 GIF: 모든 프레임을 디코드해 프레임별 텍스처 + 지연을 보관(DrawTexture가 시간으로 선택).
+    if (img.frames.empty() && HasGifExt(path)) {
+        if (IMG_Animation* anim = IMG_LoadAnimation(path.c_str())) {
+            for (int i = 0; i < anim->count; ++i) {
+                SDL_Surface* fs = anim->frames[i];
+                if (!fs) continue;
+                SDL_Texture* ft = SDL_CreateTextureFromSurface(m_renderer.get(), fs);
+                if (!ft) continue;
+                SDL_SetTextureBlendMode(ft, SDL_BLENDMODE_BLEND); // GIF 투명 픽셀(알파)을 살려 배경과 합성
+                const int d = (anim->delays && anim->delays[i] > 0) ? anim->delays[i] : kDefaultFrameMs;
+                img.frames.emplace_back(ft, &SDL_DestroyTexture); // ADR-002: Custom Deleter
+                img.delaysMs.push_back(d);
+                img.totalMs += d;
+                if (img.w == 0) { img.w = fs->w; img.h = fs->h; }
+            }
+            IMG_FreeAnimation(anim); // 서피스 소유는 anim → 텍스처로 옮겨 담았으니 해제.
+        }
     }
+
+    // 정지 이미지(PNG 등) 또는 애니메이션 디코드 실패 폴백.
+    if (img.frames.empty()) {
+        SDL_Surface* surf = IMG_Load(path.c_str());
+        if (!surf) {
+            std::fprintf(stderr, "이미지 로드 실패(%s): %s\n", path.c_str(), IMG_GetError());
+            m_textureCache[path] = kInvalidTexture; // 음수 캐시 — 매 프레임 재시도 방지
+            return kInvalidTexture;
+        }
+        SDL_Texture* raw = SDL_CreateTextureFromSurface(m_renderer.get(), surf);
+        const int w = surf->w, h = surf->h;
+        SDL_FreeSurface(surf);
+        if (!raw) {
+            std::fprintf(stderr, "텍스처 생성 실패(%s): %s\n", path.c_str(), SDL_GetError());
+            m_textureCache[path] = kInvalidTexture;
+            return kInvalidTexture;
+        }
+        SDL_SetTextureBlendMode(raw, SDL_BLENDMODE_BLEND); // 알파(투명 PNG 등)를 배경과 합성
+        img.frames.emplace_back(raw, &SDL_DestroyTexture);
+        img.delaysMs.push_back(0);
+        img.totalMs = 0; // 정지
+        img.w = w; img.h = h;
+    }
+
     const TextureId id = static_cast<TextureId>(m_textures.size());
-    m_textures.emplace_back(raw, &SDL_DestroyTexture); // ADR-002: Custom Deleter
+    m_textures.push_back(std::move(img));
     m_textureCache[path] = id;
     return id;
 }
 
 void SDLRenderDevice::DrawTexture(TextureId tex, const math::Rect& dst) {
     if (tex < 0 || tex >= static_cast<TextureId>(m_textures.size())) return;
-    SDL_Texture* t = m_textures[tex].get();
+    const LoadedImage& img = m_textures[tex];
+    if (img.frames.empty()) return;
+
+    // 현재 프레임 선택: 정지(프레임 1개/totalMs=0)면 0번, 애니메이션이면 벽시계 시간으로 순환.
+    std::size_t idx = 0;
+    if (img.frames.size() > 1 && img.totalMs > 0) {
+        int t = static_cast<int>(SDL_GetTicks() % static_cast<Uint32>(img.totalMs));
+        for (std::size_t i = 0; i < img.delaysMs.size(); ++i) {
+            t -= img.delaysMs[i];
+            if (t < 0) { idx = i; break; }
+        }
+    }
+    SDL_Texture* t = img.frames[idx].get();
     if (!t) return;
     const SDL_FRect d{dst.x, dst.y, dst.w, dst.h};
     SDL_RenderCopyF(m_renderer.get(), t, nullptr, &d);
@@ -177,11 +299,8 @@ void SDLRenderDevice::DrawTexture(TextureId tex, const math::Rect& dst) {
 
 math::Vector2D SDLRenderDevice::TextureSize(TextureId tex) const {
     if (tex < 0 || tex >= static_cast<TextureId>(m_textures.size())) return {0.0f, 0.0f};
-    SDL_Texture* t = m_textures[tex].get();
-    if (!t) return {0.0f, 0.0f};
-    int w = 0, h = 0;
-    SDL_QueryTexture(t, nullptr, nullptr, &w, &h);
-    return {static_cast<float>(w), static_cast<float>(h)};
+    const LoadedImage& img = m_textures[tex];
+    return {static_cast<float>(img.w), static_cast<float>(img.h)};
 }
 
 void SDLRenderDevice::Present() {

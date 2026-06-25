@@ -1,7 +1,7 @@
 #include "core/WorldRenderer.h"
 
 #include "core/ObjectPalette.h"
-#include "platform/FileDialog.h" // BackgroundPath: 배경 파일명을 assets/backgrounds에 해석
+#include "platform/FileDialog.h" // BackgroundPath/MobPath: 자산 파일명을 assets 하위에 해석
 
 namespace gs::core {
 
@@ -53,6 +53,19 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
         if (!sr.Intersects(vp)) continue; // 뷰포트 밖 컬링
         r.FillRect(sr, pr.color);
         r.DrawRect(sr, {0, 0, 0, 120}); // 외곽선
+    }
+
+    // 몬스터 스프라이트 — 발 위치(pos) 바닥 중심에 맞춰 그린다(풋홀드 위에 선 모습).
+    // 1차는 정지 이미지(애니메이션 GIF는 첫 프레임만). 충돌/FSM은 후속 단계.
+    for (const auto& mob : map.Mobs()) {
+        const platform::TextureId tex = r.LoadTexture(platform::MobPath(mob.sprite));
+        if (tex == platform::kInvalidTexture) continue;
+        math::Vector2D sz = mob.size;
+        if (sz.x <= 0.0f || sz.y <= 0.0f) sz = r.TextureSize(tex); // 0 = 원본 크기
+        const math::Rect sr = cam.WorldRectToScreen(
+            {mob.pos.x - sz.x * 0.5f, mob.pos.y - sz.y, sz.x, sz.y});
+        if (!sr.Intersects(vp)) continue; // 뷰포트 밖 컬링
+        r.DrawTexture(tex, sr);
     }
 
     // 풋홀드(충돌선) — 바닥=초록, 벽(수직)=주황으로 구분.

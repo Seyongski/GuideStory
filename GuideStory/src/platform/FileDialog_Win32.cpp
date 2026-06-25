@@ -92,6 +92,7 @@ std::string ResolveAsset(const std::string& sub, const std::string& name) {
 
 std::string MapPath(const std::string& name)        { return ResolveAsset("maps", name); }
 std::string BackgroundPath(const std::string& name) { return ResolveAsset("backgrounds", name); }
+std::string MobPath(const std::string& name)        { return ResolveAsset("mob", name); }
 
 std::optional<std::string> OpenFileDialog(const std::string& title,
                                           const std::string& filterLabel,

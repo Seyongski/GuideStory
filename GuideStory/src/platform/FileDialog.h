@@ -38,4 +38,8 @@ std::string MapPath(const std::string& name);
 // name이 절대 경로면 그대로 반환. (맵에는 파일명만 저장 → 게임이 이 함수로 해석)
 std::string BackgroundPath(const std::string& name);
 
+// 몬스터 스프라이트 경로를 자산 몬스터 폴더(AssetsDir("mob"))에 해석한다.
+// name은 하위 폴더를 포함할 수 있다(예: "test/stand/대적자.gif"). 절대 경로면 그대로 반환.
+std::string MobPath(const std::string& name);
+
 } // namespace gs::platform
