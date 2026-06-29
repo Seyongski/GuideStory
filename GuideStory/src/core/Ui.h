@@ -22,6 +22,7 @@ void DrawCenteredText(platform::IRenderDevice& r, const std::string& text,
 class Toolbar {
 public:
     void Add(std::string label) { m_items.push_back({std::move(label)}); }
+    void Clear() { m_items.clear(); m_hover = -1; m_active = -1; } // 동적으로 다시 채울 때(필터된 팔레트)
 
     // startX부터 오른쪽으로 (btnW + gap) 간격, 공통 y/높이로 배치.
     void LayoutRow(float startX, float y, float btnW, float btnH, float gap);
@@ -76,6 +77,72 @@ private:
     float m_min = 0.0f, m_max = 1.0f, m_value = 0.0f;
     bool  m_hover = false;
     bool  m_dragging = false;
+};
+
+// 드롭다운 메뉴: 헤더 버튼(상단 스트립) + 클릭하면 그 아래로 펼쳐지는 세로 목록.
+// 파일/추가/카메라처럼 버튼 하나에 여러 동작을 묶을 때 쓴다. 마우스 전용(편집 단축키와 공존).
+// 펼쳐진 목록은 캔버스 위에 겹쳐 그려야 하므로 RenderHeader(스트립)와 RenderPopup(맨 위)을 분리한다.
+// 여러 드롭다운의 "한 번에 하나만 열림"은 호출측이 toggled 신호를 보고 나머지를 Close()해서 맞춘다.
+class Dropdown {
+public:
+    void SetLabel(std::string label) { m_label = std::move(label); }
+    void Add(std::string item)       { m_items.push_back({std::move(item), {}}); }
+
+    // 헤더 버튼 위치. 목록 항목은 이 버튼 바로 아래로 자동 배치된다.
+    void LayoutButton(float x, float y, float w, float h);
+    // 펼친 목록 항목의 크기/간격(기본값 있음). LayoutButton 뒤에 부르면 다시 배치한다.
+    void SetItemSize(float w, float h, float gap);
+
+    bool IsOpen() const { return m_open; }
+    void Open()  { m_open = true; }
+    void Close() { m_open = false; }
+    void SetActive(bool a) { m_active = a; } // 헤더 강조(현재 그 그룹의 모드일 때)
+
+    // 한 프레임 입력. item>=0 = 그 항목이 선택됨(목록 닫힘). toggled = 헤더를 눌러 열고/닫음.
+    struct Result { int item = -1; bool toggled = false; };
+    Result Update(const platform::Input& in);
+
+    // 포인터가 헤더(또는 열려 있을 때 목록) 위인가 — 캔버스 입력 차단 판단용.
+    bool PointerOver(math::Vector2D p) const;
+
+    void RenderHeader(platform::IRenderDevice& r) const; // 상단 스트립에 그린다
+    void RenderPopup(platform::IRenderDevice& r) const;  // 열려 있으면 맨 위에 덧그린다
+
+private:
+    void RelayoutItems();
+
+    struct Item { std::string label; math::Rect rect{}; };
+    std::string       m_label;
+    std::vector<Item> m_items;
+    math::Rect m_button{};
+    float m_itemW = 150.0f, m_itemH = 30.0f, m_gap = 2.0f;
+    bool  m_open = false;
+    bool  m_active = false;
+    int   m_hover = -1;
+};
+
+// 한 줄 검색 입력 칸. 클릭하면 포커스되어 타이핑을 받는다(한글=UTF-8 다중바이트 백스페이스 처리).
+// 팔레트(타일/오브젝트) 상단에 두어 목록을 이름으로 거른다. 포커스 중에는 호출측이 편집 단축키를 막는다.
+class SearchBox {
+public:
+    void Layout(float x, float y, float w, float h) { m_rect = {x, y, w, h}; }
+    void SetPlaceholder(std::string p) { m_placeholder = std::move(p); }
+
+    // 한 프레임 입력(포커스 토글 + 타이핑). 텍스트가 바뀌면 true(목록 다시 필터).
+    bool Update(const platform::Input& in);
+    void Render(platform::IRenderDevice& r) const;
+
+    const std::string& Text() const { return m_text; }
+    bool Focused() const     { return m_focused; }
+    void SetFocused(bool f)  { m_focused = f; }
+    void Clear()             { m_text.clear(); }
+
+private:
+    math::Rect  m_rect{};
+    std::string m_text;
+    std::string m_placeholder;
+    bool        m_focused = false;
+    bool        m_hover = false;
 };
 
 // 세로로 쌓이는 버튼 메뉴. 마우스 호버/클릭과 위/아래/Enter 키를 함께 지원한다.

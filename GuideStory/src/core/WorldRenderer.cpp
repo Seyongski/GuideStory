@@ -1,23 +1,10 @@
 #include "core/WorldRenderer.h"
 
 #include "core/ObjectPalette.h"
+#include "core/TilePalette.h"  // TileColor(타일 번호 → 색) — 에디터 팔레트와 공유
 #include "platform/FileDialog.h" // BackgroundPath/MobPath: 자산 파일명을 assets 하위에 해석
 
 namespace gs::core {
-
-namespace {
-// 타일 번호 → 색상(단색 1차 표현). 스프라이트 도입 시 이 매핑이 srcRect로 대체된다.
-platform::Color TileColor(world::TileId id) {
-    switch (id) {
-        case 1: return {120, 90, 60, 255};   // 흙
-        case 2: return {90, 160, 80, 255};    // 풀
-        case 3: return {130, 130, 140, 255};  // 돌
-        case 4: return {170, 140, 90, 255};   // 나무
-        case 5: return {80, 120, 200, 255};   // 물/장식
-        default: return {200, 80, 200, 255};  // 미정의 = 마젠타
-    }
-}
-} // namespace
 
 void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map& map) {
     // 뷰포트(월드를 그리는 화면 영역). 오프셋이 있어도(에디터 툴바) 올바르게 컬링하려면

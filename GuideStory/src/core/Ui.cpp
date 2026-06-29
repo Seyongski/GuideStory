@@ -115,6 +115,97 @@ void Slider::Render(platform::IRenderDevice& r) const {
     r.DrawRect(handle, kBtnBorder);
 }
 
+void Dropdown::SetItemSize(float w, float h, float gap) {
+    m_itemW = w; m_itemH = h; m_gap = gap;
+    RelayoutItems();
+}
+
+void Dropdown::LayoutButton(float x, float y, float w, float h) {
+    m_button = math::Rect{x, y, w, h};
+    RelayoutItems();
+}
+
+void Dropdown::RelayoutItems() {
+    // 헤더 바로 아래로 한 칸씩 쌓는다. 목록 폭은 헤더보다 넓을 수 있다(긴 라벨 대비).
+    float y = m_button.Bottom() + 2.0f;
+    for (Item& it : m_items) {
+        it.rect = math::Rect{m_button.x, y, m_itemW, m_itemH};
+        y += m_itemH + m_gap;
+    }
+}
+
+Dropdown::Result Dropdown::Update(const platform::Input& in) {
+    Result res;
+    const math::Vector2D m = in.MousePos();
+    const bool click = in.MousePressed(platform::MouseButton::Left);
+    m_hover = -1;
+
+    // 헤더 클릭 = 열고/닫기 토글.
+    if (click && m_button.Contains(m)) { m_open = !m_open; res.toggled = true; return res; }
+
+    if (m_open) {
+        for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
+            if (m_items[i].rect.Contains(m)) { m_hover = i; break; }
+        if (click) {
+            if (m_hover != -1) res.item = m_hover; // 항목 선택
+            m_open = false;                        // 항목 선택이든 바깥 클릭이든 닫는다
+        }
+    }
+    return res;
+}
+
+bool Dropdown::PointerOver(math::Vector2D p) const {
+    if (m_button.Contains(p)) return true;
+    if (!m_open) return false;
+    for (const Item& it : m_items) if (it.rect.Contains(p)) return true;
+    return false;
+}
+
+void Dropdown::RenderHeader(platform::IRenderDevice& r) const {
+    DrawButton(r, m_button, m_label + "  ▼", m_open || m_active, 20.0f);
+}
+
+void Dropdown::RenderPopup(platform::IRenderDevice& r) const {
+    if (!m_open) return;
+    for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
+        DrawButton(r, m_items[i].rect, m_items[i].label, i == m_hover, 19.0f);
+}
+
+bool SearchBox::Update(const platform::Input& in) {
+    const math::Vector2D mouse = in.MousePos();
+    m_hover = m_rect.Contains(mouse);
+    if (in.MousePressed(platform::MouseButton::Left)) m_focused = m_hover; // 칸 안=포커스, 밖=해제
+
+    if (!m_focused) return false;
+
+    bool changed = false;
+    const std::string& typed = in.TextInput();
+    if (!typed.empty()) { m_text += typed; changed = true; }
+    if (in.WasPressed(platform::Key::Backspace) && !m_text.empty()) {
+        // UTF-8 한 글자 삭제: 끝의 후속바이트(10xxxxxx)들을 지우고 선두바이트까지 지운다.
+        while (!m_text.empty()) {
+            const unsigned char c = static_cast<unsigned char>(m_text.back());
+            m_text.pop_back();
+            if ((c & 0xC0) != 0x80) break; // ASCII이거나 선두바이트면 멈춘다
+        }
+        changed = true;
+    }
+    return changed;
+}
+
+void SearchBox::Render(platform::IRenderDevice& r) const {
+    r.FillRect(m_rect, m_focused ? kTrackDone : kTrackFill);
+    r.DrawRect(m_rect, m_focused ? kBtnFillSel : kBtnBorder);
+    const bool empty = m_text.empty();
+    const std::string shown = empty ? m_placeholder : m_text;
+    if (!shown.empty()) {
+        r.DrawText(shown + (m_focused ? "_" : ""), {m_rect.x + 8.0f, m_rect.y + m_rect.h * 0.5f - 9.0f},
+                   18.0f, empty ? kBtnTextOff : kBtnText);
+    } else if (m_focused) {
+        r.DrawText("_", {m_rect.x + 8.0f, m_rect.y + m_rect.h * 0.5f - 9.0f}, 18.0f, kBtnText);
+    }
+}
+
 void Menu::Layout(float centerX, float firstCenterY, float btnW, float btnH, float gap) {
     float cy = firstCenterY;
     for (Item& it : m_items) {

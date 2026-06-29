@@ -1,12 +1,14 @@
 #include "MapEditorScreen.h"
 
 #include "core/ObjectPalette.h"
+#include "core/TilePalette.h"
 #include "core/WorldRenderer.h"
 #include "platform/FileDialog.h"
 #include "world/MapScaffold.h"
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace gs::app {
 
@@ -21,20 +23,23 @@ constexpr float kPanelW = 210.0f;
 constexpr float kPanelX = kViewW - kPanelW; // 우측 패널 좌측 경계
 
 enum EmptyItem { kNew0 = 0, kOpen0, kBack0 };
-enum ToolItem  { kBrowse = 0, kGrid, kTile, kFoothold, kSpawn, kPortal, kBackground, kObject };
-enum FileItem  { kNew = 0, kOpen, kSave, kSaveAs, kBack };
+enum QuickItem { kqBrowse = 0, kqGrid, kqBg };          // 단일 버튼(둘러보기/격자/배경)
+enum AddItem   { kaTile = 0, kaFoothold, kaSpawn, kaPortal, kaObject }; // 추가 드롭다운
+enum CamItem   { kcView = 0, kcBounds };                 // 카메라 드롭다운(화면/이동범위)
+enum FileItem  { kfNew = 0, kfOpen, kfSave, kfSaveAs, kfBack };
 
-// 현재 편집 모드에 대응하는 모드 툴바 버튼 인덱스(활성 강조용).
-int ModeToToolIndex(editor::EditMode m) {
-    switch (m) {
-        case editor::EditMode::Browse:   return kBrowse;
-        case editor::EditMode::Tile:     return kTile;
-        case editor::EditMode::Foothold: return kFoothold;
-        case editor::EditMode::Spawn:    return kSpawn;
-        case editor::EditMode::Portal:   return kPortal;
-        case editor::EditMode::Object:   return kObject;
-    }
-    return kBrowse;
+// 배치 모드인가(추가 드롭다운 강조 + 우측 팔레트 표시 판단).
+bool IsPlacement(editor::EditMode m) {
+    return m == editor::EditMode::Tile || m == editor::EditMode::Foothold ||
+           m == editor::EditMode::Spawn || m == editor::EditMode::Portal ||
+           m == editor::EditMode::Object;
+}
+
+// 검색 매칭용 ASCII 소문자화(한글 등 비-ASCII 바이트는 그대로 둔다 → UTF-8 부분일치 안전).
+std::string ToLowerAscii(const std::string& s) {
+    std::string out = s;
+    for (char& c : out) if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    return out;
 }
 
 // --- 사각형 크기 조절 핸들(하얀 네모) ---
@@ -103,37 +108,46 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     m_emptyMenu.Add("← 메뉴로");
     m_emptyMenu.Layout(kViewW * 0.5f, 320.0f, 320.0f, 60.0f, 18.0f);
 
-    // 모드 버튼(좌측): 둘러보기 / 격자 / 타일 / 풋홀드 / 스폰 / 포탈 / 배경 / 오브젝트
-    m_tools.Add("둘러보기");
-    m_tools.Add("격자");
-    m_tools.Add("타일");
-    m_tools.Add("풋홀드");
-    m_tools.Add("스폰");
-    m_tools.Add("포탈");
-    m_tools.Add("배경");
-    m_tools.Add("오브젝트");
-    m_tools.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 상단 스트립 1행
+    // 상단 1행 좌측: 단일 버튼 [둘러보기][격자][배경] + 드롭다운 [추가▼][카메라▼].
+    m_quick.Add("둘러보기");
+    m_quick.Add("격자");
+    m_quick.Add("배경");
+    m_quick.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 8, 93, 178
 
-    // 파일 버튼(우측): 새로 / 열기 / 저장 / 다른이름 / 메뉴로
-    m_files.Add("새로");
-    m_files.Add("열기");
-    m_files.Add("저장");
-    m_files.Add("다른이름");
-    m_files.Add("← 메뉴로");
-    m_files.LayoutRow(kViewW - (5.0f * 85.0f) - 2.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 상단 스트립 1행(우측)
+    m_addMenu.SetLabel("추가");
+    m_addMenu.Add("타일");
+    m_addMenu.Add("풋홀드");
+    m_addMenu.Add("스폰");
+    m_addMenu.Add("포탈");
+    m_addMenu.Add("오브젝트");
+    m_addMenu.SetItemSize(120.0f, 30.0f, 2.0f);
+    m_addMenu.LayoutButton(263.0f, 8.0f, 86.0f, 30.0f);
 
-    // 우측 팔레트: 오브젝트 프리셋 목록(Object 모드일 때만 표시). 패널은 캔버스 영역(스트립 아래)에.
-    for (int i = 0; i < core::ObjectPresetCount(); ++i) m_objPalette.Add(core::ObjectPresetAt(i).name);
-    m_objPalette.LayoutColumn(kPanelX + 12.0f, kToolStripH + 56.0f, kPanelW - 24.0f, 44.0f, 8.0f);
+    m_camMenu.SetLabel("카메라");
+    m_camMenu.Add("화면");      // kcView   → m_editingRect = 2 (파랑)
+    m_camMenu.Add("이동범위");  // kcBounds → m_editingRect = 1 (빨강)
+    m_camMenu.SetItemSize(120.0f, 30.0f, 2.0f);
+    m_camMenu.LayoutButton(352.0f, 8.0f, 86.0f, 30.0f);
 
-    // 상단 스트립 2행: 둘러보기 확인용 줌 25%(축소)~200%(확대). 둘러보기·사각형 편집에서만 적용(저장 안 됨).
+    // 상단 1행 우측: 파일 드롭다운(긴 라벨 → 항목 폭 넓게, 화면 안에 들어오게 좌측 정렬 위치).
+    m_fileMenu.SetLabel("파일");
+    m_fileMenu.Add("새로 만들기");
+    m_fileMenu.Add("열기");
+    m_fileMenu.Add("저장하기");
+    m_fileMenu.Add("다른 이름으로 저장");
+    m_fileMenu.Add("← 메뉴로");
+    m_fileMenu.SetItemSize(178.0f, 30.0f, 2.0f);
+    m_fileMenu.LayoutButton(kViewW - 190.0f, 8.0f, 178.0f, 30.0f);
+
+    // 상단 2행: 둘러보기 확인용 줌 25%(축소)~200%(확대). 둘러보기·사각형 편집에서만 적용(저장 안 됨).
     m_zoomBar.Setup(25.0f, 200.0f, 100.0f);
     m_zoomBar.Layout(72.0f, 46.0f, 170.0f, 14.0f);
 
-    // 상단 스트립 2행: 이동범위(빨강)/화면(파랑) 지정 토글. 켜고 캔버스를 드래그해 사각형을 그린다(우클릭=해제).
-    m_rectTools.Add("이동범위");
-    m_rectTools.Add("화면");
-    m_rectTools.LayoutRow(256.0f, 42.0f, 96.0f, 26.0f, 4.0f);
+    // 우측 팔레트 검색 칸(타일/오브젝트 공용 위치). 목록은 매 프레임 필터해 채운다.
+    m_tileSearch.SetPlaceholder("타일 검색…");
+    m_tileSearch.Layout(kPanelX + 12.0f, kToolStripH + 44.0f, kPanelW - 24.0f, 28.0f);
+    m_objSearch.SetPlaceholder("오브젝트 검색…");
+    m_objSearch.Layout(kPanelX + 12.0f, kToolStripH + 44.0f, kPanelW - 24.0f, 28.0f);
 }
 
 void MapEditorScreen::StartEditing() {
@@ -164,60 +178,95 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
 
     // --- 편집 상태 ---
     const bool typing = m_editor->IsTextActive();
+    const math::Vector2D m = in.MousePos();
 
-    // ESC: 텍스트 입력 중이면 MapEditor가 취소로 소비, 아니면 (변경 확인 후) 런처로 복귀.
-    if (in.WasPressed(platform::Key::Escape) && !typing) return ConfirmLeave();
+    // 현재 모드에 맞는 우측 팔레트 검색 칸(타일/오브젝트). ESC·단축키 차단 판단에 쓴다.
+    ui::SearchBox* search = ActiveSearch();
+    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0;
+    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0;
 
-    // 둘러보기 확인용 줌(저장 안 됨) + 사각형 지정 토글. 줌은 둘러보기/사각형 편집에서만 적용(편집 모드는 1:1).
-    const bool inspect = (m_editor->Mode() == editor::EditMode::Browse) || (m_editingRect != 0);
-    if (!typing) {
-        if (inspect) m_zoomBar.Update(in);
-        m_camera.SetZoom(inspect ? m_zoomBar.Value() / 100.0f : 1.0f);
-        switch (m_rectTools.Update(in)) {
-            case 0: m_editingRect = (m_editingRect == 1) ? 0 : 1; break; // 이동범위(빨강) 토글
-            case 1: m_editingRect = (m_editingRect == 2) ? 0 : 2; break; // 화면(파랑) 토글
-            default: break;
-        }
+    // ESC: 검색 포커스 해제 > (MapEditor가 텍스트 취소로 소비) > 변경 확인 후 런처로 복귀.
+    if (in.WasPressed(platform::Key::Escape)) {
+        if (search && search->Focused()) { search->SetFocused(false); return EditorScene::Stay; }
+        if (!typing) return ConfirmLeave();
     }
 
-    // 상단 GUI 툴바(타이핑 중에는 비활성). 버튼 클릭은 이 프레임에 소비하고 캔버스로 넘기지 않는다.
+    // 둘러보기 확인용 줌(저장 안 됨). 둘러보기/사각형 편집에서만 적용(편집 모드는 1:1).
+    const bool inspect = (m_editor->Mode() == editor::EditMode::Browse) || (m_editingRect != 0);
+    if (!typing && inspect) m_zoomBar.Update(in);
+    m_camera.SetZoom(inspect ? m_zoomBar.Value() / 100.0f : 1.0f);
+
+    // --- 상단 드롭다운(파일/추가/카메라) + 단일 버튼(둘러보기/격자/배경) ---
+    bool menuClickConsumed = false;
     if (!typing) {
-        switch (m_tools.Update(in)) {
-            case kBrowse:   m_editor->SetMode(editor::EditMode::Browse);   return EditorScene::Stay;
-            case kGrid:     m_editor->ToggleGrid();                        return EditorScene::Stay;
-            case kTile:     m_editor->SetMode(editor::EditMode::Tile);     return EditorScene::Stay;
-            case kFoothold: m_editor->SetMode(editor::EditMode::Foothold); return EditorScene::Stay;
-            case kSpawn:    m_editor->SetMode(editor::EditMode::Spawn);    return EditorScene::Stay;
-            case kPortal:   m_editor->SetMode(editor::EditMode::Portal);   return EditorScene::Stay;
-            case kBackground: {
+        const bool wasOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() || m_camMenu.IsOpen();
+        const auto rFile = m_fileMenu.Update(in);
+        const auto rAdd  = m_addMenu.Update(in);
+        const auto rCam  = m_camMenu.Update(in);
+        // 한 번에 하나만 열림: 방금 연 것만 남기고 나머지 닫는다.
+        if (rFile.toggled && m_fileMenu.IsOpen()) { m_addMenu.Close();  m_camMenu.Close(); }
+        if (rAdd.toggled  && m_addMenu.IsOpen())  { m_fileMenu.Close(); m_camMenu.Close(); }
+        if (rCam.toggled  && m_camMenu.IsOpen())  { m_fileMenu.Close(); m_addMenu.Close(); }
+
+        switch (rFile.item) { // 파일
+            case kfNew:    m_editor->NewMap(); return EditorScene::Stay;
+            case kfOpen:   m_editor->Open();   return EditorScene::Stay;
+            case kfSave:   m_editor->Save();   return EditorScene::Stay;
+            case kfSaveAs: m_editor->SaveAs(); return EditorScene::Stay;
+            case kfBack:   return ConfirmLeave();
+            default: break;
+        }
+        switch (rAdd.item) { // 추가(배치 모드) — 선택 시 카메라 편집 해제
+            case kaTile:     m_editingRect = 0; m_editor->SetMode(editor::EditMode::Tile);     return EditorScene::Stay;
+            case kaFoothold: m_editingRect = 0; m_editor->SetMode(editor::EditMode::Foothold); return EditorScene::Stay;
+            case kaSpawn:    m_editingRect = 0; m_editor->SetMode(editor::EditMode::Spawn);    return EditorScene::Stay;
+            case kaPortal:   m_editingRect = 0; m_editor->SetMode(editor::EditMode::Portal);   return EditorScene::Stay;
+            case kaObject:   m_editingRect = 0; m_editor->SetMode(editor::EditMode::Object);   return EditorScene::Stay;
+            default: break;
+        }
+        switch (rCam.item) { // 카메라(사각형 편집) — 배치 모드는 둘러보기로 내려 캔버스 클릭 누수 방지
+            case kcView:   m_editingRect = (m_editingRect == 2) ? 0 : 2;
+                           m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
+            case kcBounds: m_editingRect = (m_editingRect == 1) ? 0 : 1;
+                           m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
+            default: break;
+        }
+        switch (m_quick.Update(in)) { // 단일 버튼
+            case kqBrowse: m_editingRect = 0; m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
+            case kqGrid:   m_editor->ToggleGrid(); return EditorScene::Stay;
+            case kqBg: {
                 const auto p = platform::OpenFileDialog("배경 이미지", "PNG 이미지", "*.png",
                                                         platform::AssetsDir("backgrounds"));
                 if (p) m_editor->SetBackground(*p); // 파일명만 맵에 저장(저장 시 .gsmap에 기록)
                 return EditorScene::Stay;
             }
-            case kObject:   m_editor->SetMode(editor::EditMode::Object);   return EditorScene::Stay;
-            default:        break;
+            default: break;
         }
-        switch (m_files.Update(in)) {
-            case kNew:    m_editor->NewMap(); return EditorScene::Stay;
-            case kOpen:   m_editor->Open();   return EditorScene::Stay;
-            case kSave:   m_editor->Save();   return EditorScene::Stay;
-            case kSaveAs: m_editor->SaveAs(); return EditorScene::Stay;
-            case kBack:   return ConfirmLeave();
-            default:      break;
-        }
+        menuClickConsumed = wasOpen || rFile.toggled || rAdd.toggled || rCam.toggled;
+    }
+    const bool anyMenuOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() || m_camMenu.IsOpen();
 
-        // 우측 오브젝트 팔레트(Object 모드에서만). 클릭하면 프리셋 선택 후 소비.
-        if (m_editor->Mode() == editor::EditMode::Object) {
-            const int sel = m_objPalette.Update(in);
-            if (sel >= 0) { m_editor->SelectObject(sel); return EditorScene::Stay; }
+    // --- 우측 팔레트(타일/오브젝트): 검색 + 필터된 목록 ---
+    if ((tilePalette || objPalette) && !typing) {
+        if (search && !anyMenuOpen && !menuClickConsumed) search->Update(in);
+        BuildPalette(tilePalette, search ? search->Text() : std::string());
+        if (!anyMenuOpen && !menuClickConsumed) {
+            const int sel = m_paletteList.Update(in);
+            if (sel >= 0 && sel < static_cast<int>(m_paletteIds.size())) {
+                if (tilePalette) m_editor->SetCurrentTile(static_cast<world::TileId>(m_paletteIds[sel]));
+                else             m_editor->SelectObject(m_paletteIds[sel]);
+                return EditorScene::Stay;
+            }
         }
     }
 
-    // 포인터가 상단 UI 스트립 또는 우측 팔레트 패널 위면 마우스 편집/드래그를 막는다(클릭 누수 방지).
-    const math::Vector2D m = in.MousePos();
+    // 검색 칸에 포커스가 있으면 타이핑 중 — 캔버스 편집/단축키/패닝을 모두 멈춘다(렌더는 계속).
+    if (search && search->Focused()) return EditorScene::Stay;
+
+    // 포인터가 상단 스트립/열린 드롭다운/우측 팔레트 위면 캔버스 편집을 막는다(클릭 누수 방지).
     bool overUi = m.y < kToolStripH;
-    if (m_editor->Mode() == editor::EditMode::Object && m.x >= kPanelX) overUi = true;
+    if ((tilePalette || objPalette) && m.x >= kPanelX) overUi = true;
+    if (anyMenuOpen || menuClickConsumed) overUi = true;
     if (m_zoomBar.Dragging()) overUi = true; // 슬라이더 드래그 중 보호
 
     // 사각형 편집 모드(이동범위 빨강 / 화면 파랑):
@@ -311,27 +360,51 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
         }
     }
 
-    // 우측 오브젝트 팔레트 패널(Object 모드일 때만). 캔버스 영역(스트립 아래)에 그린다.
-    if (m_editor->Mode() == editor::EditMode::Object) {
+    // 우측 팔레트 패널(타일/오브젝트 모드일 때). 검색 + 필터된 종류 목록. 캔버스 영역(스트립 아래)에.
+    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0;
+    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0;
+    if (tilePalette || objPalette) {
         r.FillRect({kPanelX, kToolStripH, kPanelW, kViewH}, kPanel);
-        ui::DrawCenteredText(r, "오브젝트", kPanelX + kPanelW * 0.5f, kToolStripH + 26.0f, 26.0f, kTitle);
-        m_objPalette.SetActive(m_editor->CurrentObject());
-        m_objPalette.Render(r);
-        ui::DrawCenteredText(r, "클릭해 선택 → 맵에 배치",
-                             kPanelX + kPanelW * 0.5f, kWinH - 28.0f, 16.0f, kHint);
+        const float cx = kPanelX + kPanelW * 0.5f;
+        ui::DrawCenteredText(r, tilePalette ? "타일" : "오브젝트", cx, kToolStripH + 22.0f, 24.0f, kTitle);
+
+        ui::SearchBox& sb = tilePalette ? m_tileSearch : m_objSearch;
+        sb.Render(r);
+
+        // 목록을 현재 검색어로 다시 채우고(렌더 패스 독립), 현재 선택 항목을 강조한다.
+        BuildPalette(tilePalette, sb.Text());
+        const int current = tilePalette ? static_cast<int>(m_editor->CurrentTile())
+                                        : m_editor->CurrentObject();
+        int activeRow = -1;
+        for (int i = 0; i < static_cast<int>(m_paletteIds.size()); ++i)
+            if (m_paletteIds[i] == current) { activeRow = i; break; }
+        m_paletteList.SetActive(activeRow);
+        m_paletteList.Render(r);
+
+        ui::DrawCenteredText(r, "클릭해 선택 → 캔버스에 배치", cx, kWinH - 24.0f, 15.0f, kHint);
     }
 
     // 상단 UI 스트립(캔버스 위, 별도 영역 — 캔버스를 침범하지 않는다). 2행 구성.
     r.FillRect({0.0f, 0.0f, kViewW, kToolStripH}, kBar);
-    m_tools.SetActive(ModeToToolIndex(m_editor->Mode())); // 1행: 모드 버튼(현재 모드 강조)
-    m_tools.Render(r);
-    m_files.Render(r);                                     // 1행: 파일 버튼(우측)
 
-    const int pct = static_cast<int>(m_zoomBar.Value() + 0.5f); // 2행: 둘러보기 줌 + 사각형 지정
+    // 1행: 단일 버튼 + 드롭다운 헤더. 현재 상태에 따라 강조(active).
+    m_quick.SetActive((m_editor->Mode() == editor::EditMode::Browse && m_editingRect == 0) ? kqBrowse : -1);
+    m_quick.Render(r);
+    m_addMenu.SetActive(m_editingRect == 0 && IsPlacement(m_editor->Mode()));
+    m_camMenu.SetActive(m_editingRect != 0);
+    m_addMenu.RenderHeader(r);
+    m_camMenu.RenderHeader(r);
+    m_fileMenu.RenderHeader(r);
+
+    // 2행: 둘러보기 줌.
+    const int pct = static_cast<int>(m_zoomBar.Value() + 0.5f);
     ui::DrawCenteredText(r, "줌 " + std::to_string(pct) + "%", 36.0f, 53.0f, 15.0f, kTitle);
     m_zoomBar.Render(r);
-    m_rectTools.SetActive(m_editingRect - 1); // 0=없음→-1, 1→0(이동범위), 2→1(화면)
-    m_rectTools.Render(r);
+
+    // 펼쳐진 드롭다운 목록은 맨 위에 덧그린다(캔버스/팔레트/스트립을 덮는다).
+    m_fileMenu.RenderPopup(r);
+    m_addMenu.RenderPopup(r);
+    m_camMenu.RenderPopup(r);
 }
 
 // 닫기/뒤로 전 저장 안 된 변경 확인(네이티브 예/아니오/취소 창). 두 진입점(ESC·창닫기)에서 공유.
@@ -346,6 +419,36 @@ bool ConfirmAndMaybeSave(editor::MapEditor& ed) {
     return false;
 }
 } // namespace
+
+ui::SearchBox* MapEditorScreen::ActiveSearch() {
+    if (!m_editor || m_editingRect != 0) return nullptr;
+    if (m_editor->Mode() == editor::EditMode::Tile)   return &m_tileSearch;
+    if (m_editor->Mode() == editor::EditMode::Object) return &m_objSearch;
+    return nullptr;
+}
+
+void MapEditorScreen::BuildPalette(bool tiles, const std::string& query) {
+    m_paletteList.Clear();
+    m_paletteIds.clear();
+    const std::string q = ToLowerAscii(query);
+    auto matches = [&](const std::string& name) {
+        return q.empty() || ToLowerAscii(name).find(q) != std::string::npos;
+    };
+    if (tiles) {
+        for (int i = 0; i < core::TilePresetCount(); ++i) {
+            const core::TilePreset& t = core::TilePresetAt(i);
+            if (matches(t.name)) { m_paletteList.Add(t.name); m_paletteIds.push_back(t.id); }
+        }
+    } else {
+        for (int i = 0; i < core::ObjectPresetCount(); ++i) {
+            if (matches(core::ObjectPresetAt(i).name)) {
+                m_paletteList.Add(core::ObjectPresetAt(i).name);
+                m_paletteIds.push_back(i);
+            }
+        }
+    }
+    m_paletteList.LayoutColumn(kPanelX + 12.0f, kToolStripH + 84.0f, kPanelW - 24.0f, 36.0f, 6.0f);
+}
 
 EditorScene MapEditorScreen::ConfirmLeave() {
     if (!m_editor || !m_editor->IsDirty()) return EditorScene::Launcher; // 변경 없음 → 바로 복귀

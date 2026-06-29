@@ -30,6 +30,7 @@ public:
     void Render(platform::IRenderDevice& r, const core::Camera& cam) const;
 
     world::TileId CurrentTile() const { return m_currentTile; }
+    void          SetCurrentTile(world::TileId id) { m_currentTile = id; } // 우측 팔레트에서 선택
     EditMode      Mode()        const { return m_mode; }
 
     // 모드 전환 — 배치 모드(Browse 외)로 들어가면 격자를 자동으로 켠다.
