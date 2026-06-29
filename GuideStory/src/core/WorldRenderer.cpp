@@ -25,6 +25,7 @@ void RenderWorld(platform::IRenderDevice& r, const Camera& cam, const world::Map
     const math::Rect vp = cam.ViewportScreenRect();
 
     // 배경 PNG(맵에 설정 시) — 월드 원점에 원본 픽셀 1:1로(왜곡 없음), 모든 것 뒤에.
+    // 확대/축소는 카메라 줌이 처리한다(배경만 따로 스케일하지 않는다 — 모든 요소가 함께 스케일돼야 정렬 유지).
     if (!map.Background().empty()) {
         const platform::TextureId bg = r.LoadTexture(platform::BackgroundPath(map.Background()));
         if (bg != platform::kInvalidTexture) {

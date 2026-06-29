@@ -90,19 +90,6 @@ void MapEditor::SelectObject(int preset) {
     m_status = std::string("오브젝트 선택: ") + core::ObjectPresetAt(preset).name;
 }
 
-void MapEditor::FitToBackground(int wpx, int hpx) {
-    const int ts = m_map.Tiles().TileSize();
-    if (ts <= 0 || wpx <= 0 || hpx <= 0) {
-        m_status = "배경을 먼저 설정하세요";
-        return;
-    }
-    const int tw = std::max(1, (wpx + ts - 1) / ts); // 올림 → 월드가 배경을 덮도록
-    const int th = std::max(1, (hpx + ts - 1) / ts);
-    m_map.Tiles().SetSize(tw, th);
-    m_status = "맵을 배경에 맞춤: " + std::to_string(tw * ts) + " x " +
-               std::to_string(th * ts) + " px";
-}
-
 void MapEditor::RefreshNextIds() {
     int maxFh = 0;
     for (const auto& fh : m_map.Footholds().All())
@@ -143,6 +130,7 @@ void MapEditor::CreateDefault(const std::string& path) {
     } catch (const std::exception& e) {
         m_status = std::string("새 맵 저장 실패: ") + e.what();
     }
+    Baseline(); // 갓 만든 기본 맵 = 변경 없음 기준
 }
 
 void MapEditor::Save() {
@@ -150,6 +138,7 @@ void MapEditor::Save() {
     try {
         m_map.Save(m_mapPath);
         m_status = "저장: " + FileName(m_mapPath);
+        Baseline(); // 저장 성공 → 변경 없음 기준 갱신
     } catch (const std::exception& e) {
         m_status = std::string("저장 실패: ") + e.what();
     }
@@ -163,6 +152,7 @@ void MapEditor::SaveAs() {
         m_map.Save(*path);
         m_mapPath = *path;
         m_status = "저장: " + FileName(m_mapPath);
+        Baseline(); // 저장 성공 → 변경 없음 기준 갱신
     } catch (const std::exception& e) {
         m_status = std::string("저장 실패: ") + e.what();
     }
@@ -179,6 +169,7 @@ void MapEditor::Open() {
         m_mode = EditMode::Browse; // 열면 둘러보기로 시작(클릭이 배치로 새지 않음)
         m_panning = false;
         m_status = "열기: " + FileName(m_mapPath);
+        Baseline(); // 막 연 맵 = 변경 없음 기준
     } catch (const std::exception& e) {
         m_status = std::string("열기 실패: ") + e.what();
     }
@@ -276,7 +267,11 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, b
             // 좌드래그로 화면 이동(둘러보기). 첫 프레임은 기준점만 잡고 이동하지 않는다.
             if (in.MouseDown(MouseButton::Left)) {
                 const math::Vector2D now = in.MousePos();
-                if (m_panning) cam.Move({m_panLast.x - now.x, m_panLast.y - now.y});
+                // 화면 픽셀 이동량 → 월드 이동량(줌 반영). 잡은 점이 커서에 붙어 따라온다.
+                if (m_panning) {
+                    const float z = cam.Zoom();
+                    cam.Move({(m_panLast.x - now.x) / z, (m_panLast.y - now.y) / z});
+                }
                 m_panLast = now;
                 m_panning = true;
                 cam.ClampToBounds(m_map.WorldBounds());

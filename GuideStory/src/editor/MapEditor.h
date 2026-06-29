@@ -41,9 +41,6 @@ public:
     void SetBackground(const std::string& pathOrName);
     const std::string& Background() const { return m_map.Background(); }
 
-    // 맵 격자 크기를 배경 픽셀 크기를 덮도록 맞춘다(올림). 배경 크기는 호출측이 렌더에서 구해 전달.
-    void FitToBackground(int wpx, int hpx);
-
     // 렌더에서 측정한 배경 원본 픽셀 크기를 맵에 반영한다(저장 시 BGSIZE로 기록 → 게임이 정확한 WorldBounds).
     // 배경이 맵의 카메라/시각 범위 권위이므로, 알게 되는 즉시 맵에 심어 둔다.
     void SetBackgroundSize(math::Vector2D px) { m_map.SetBackgroundSize(px); }
@@ -63,6 +60,10 @@ public:
     // 텍스트 입력 필드가 열려 있는가(호스트가 ESC=취소/뒤로를 구분하는 데 사용).
     bool IsTextActive() const { return m_textActive; }
 
+    // 마지막 저장(또는 새 맵/열기) 이후 편집이 있었는가. 닫기/뒤로 전 확인창 판단에 쓴다.
+    // 자동 측정되는 배경 픽셀 크기는 제외하고 비교한다(Map::Serialize(false)).
+    bool IsDirty() const { return m_map.Serialize(false) != m_cleanSnapshot; }
+
     const std::string& LastStatus() const { return m_status; }
 
 private:
@@ -77,6 +78,7 @@ private:
     void CommitText();
     void RefreshNextIds(); // 로드/새맵 후 다음 풋홀드·포탈 id를 최대값+1로 복원
     void RecomputeNextPortalId(); // 포탈 삭제 후 다음 id를 최대값+1로 정리(번호 누적 방지)
+    void Baseline() { m_cleanSnapshot = m_map.Serialize(false); } // "변경 없음" 기준 갱신(저장/열기/새맵 시)
 
     world::Map&    m_map;
     world::TileId  m_currentTile = 1;
@@ -103,6 +105,7 @@ private:
 
     std::string    m_mapPath;  // 저장/로드한 절대 경로. 비어 있으면 "아직 저장 안 됨".
     std::string    m_status;
+    std::string    m_cleanSnapshot; // 마지막 저장/열기/새맵 시점의 직렬화 스냅샷(변경 감지 기준)
 };
 
 } // namespace gs::editor

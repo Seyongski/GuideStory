@@ -24,6 +24,14 @@ std::optional<std::string> SaveFileDialog(const std::string& title,
                                           const std::string& defaultExt,
                                           const std::string& initialDir);
 
+// "변경사항을 저장하시겠습니까?" 네이티브 확인창(예/아니오/취소).
+//  - Save    : 저장 후 진행
+//  - Discard : 저장하지 않고 진행
+//  - Cancel  : 현재 화면에 머문다(닫지 않음)
+// 저장되지 않은 편집이 있을 때 닫기/뒤로 전에 물어 작업이 날아가지 않게 한다.
+enum class SavePrompt { Save, Discard, Cancel };
+SavePrompt AskSaveChanges(const std::string& title, const std::string& message);
+
 // 프로젝트 자산 루트(<repo>/assets) 하위 폴더의 절대 경로. 폴더가 없으면 생성한다.
 // 루트는 실행 파일에서 위로 올라가며 GuideStory.sln을 찾아 결정한다(빌드 구성 무관).
 // 못 찾으면 실행 파일 폴더의 assets로 폴백한다.

@@ -16,6 +16,10 @@ public:
     // 사용자가 창을 닫으려 했는지 여부.
     virtual bool ShouldClose() const = 0;
 
+    // 닫기 요청을 취소한다(ShouldClose를 다시 false로). 저장 안 된 변경이 있어 닫기를
+    // 한 프레임 보류하고 확인창을 띄울 때 호스트가 호출한다.
+    virtual void CancelClose() = 0;
+
     // 직전 PollEvents 시점의 입력 스냅샷.
     virtual const Input& GetInput() const = 0;
 };

@@ -1,6 +1,7 @@
 #include "world/Map.h"
 
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -9,6 +10,8 @@
 //   TILESIZE 32
 //   SIZE <w> <h>
 //   SPAWN <x> <y>
+//   PLAYERBOUNDS <x> <y> <w> <h>          (선택; 빨강 = 캐릭터 이동범위/카메라 한계. 없으면 배경 전체)
+//   CAMERAVIEW <x> <y> <w> <h>            (선택; 파랑 = 게임 화면 영역. 폭이 줌을 정함. 없으면 줌 1)
 //   BACKGROUND <파일명>                  (assets/backgrounds 기준; 빈 값은 "-")
 //   BGSIZE <w> <h>                        (선택; 배경 원본 픽셀 크기 = 맵의 카메라/시각 범위 권위)
 //   TILES
@@ -35,13 +38,27 @@ void Map::Save(const std::string& path) const {
     std::ofstream out(path, std::ios::trunc);
     if (!out) throw std::runtime_error("맵 저장 실패(파일 열기): " + path);
 
+    out << Serialize(true);
+
+    if (!out) throw std::runtime_error("맵 저장 실패(쓰기 중 오류): " + path);
+}
+
+std::string Map::Serialize(bool includeBgSize) const {
+    std::ostringstream out;
+
     out << "GSMAP 2\n";
     out << "TILESIZE " << m_tiles.TileSize() << "\n";
     out << "SIZE " << m_tiles.Width() << " " << m_tiles.Height() << "\n";
     out << "SPAWN " << m_spawn.x << " " << m_spawn.y << "\n";
+    if (HasPlayerBounds())
+        out << "PLAYERBOUNDS " << m_playerBounds.x << " " << m_playerBounds.y << " "
+            << m_playerBounds.w << " " << m_playerBounds.h << "\n";
+    if (HasCameraView())
+        out << "CAMERAVIEW " << m_cameraView.x << " " << m_cameraView.y << " "
+            << m_cameraView.w << " " << m_cameraView.h << "\n";
     out << "BACKGROUND " << (m_background.empty() ? kEmptyTarget : m_background.c_str()) << "\n";
     // 배경 픽셀 크기(알 때만). 배경이 맵의 카메라/시각 범위 권위 → 로드 후 즉시(첫 프레임 전) 정확한 WorldBounds.
-    if (!m_background.empty() && m_bgSize.x > 0.0f && m_bgSize.y > 0.0f)
+    if (includeBgSize && !m_background.empty() && m_bgSize.x > 0.0f && m_bgSize.y > 0.0f)
         out << "BGSIZE " << m_bgSize.x << " " << m_bgSize.y << "\n";
 
     out << "TILES\n";
@@ -78,7 +95,7 @@ void Map::Save(const std::string& path) const {
 
     out << "END\n";
 
-    if (!out) throw std::runtime_error("맵 저장 실패(쓰기 중 오류): " + path);
+    return out.str();
 }
 
 void Map::Load(const std::string& path) {
@@ -96,6 +113,8 @@ void Map::Load(const std::string& path) {
     TileMap tiles;
     FootholdMap fhmap;
     math::Vector2D spawn{200.0f, 560.0f};
+    math::Rect playerBounds{};
+    math::Rect cameraView{};
     std::vector<Portal> portals;
     std::vector<MapObject> objects;
     std::vector<MapMob> mobs;
@@ -116,6 +135,12 @@ void Map::Load(const std::string& path) {
         } else if (tag == "SPAWN") {
             if (!(in >> spawn.x >> spawn.y))
                 throw std::runtime_error("맵 형식 오류: SPAWN");
+        } else if (tag == "PLAYERBOUNDS") {
+            if (!(in >> playerBounds.x >> playerBounds.y >> playerBounds.w >> playerBounds.h))
+                throw std::runtime_error("맵 형식 오류: PLAYERBOUNDS");
+        } else if (tag == "CAMERAVIEW") {
+            if (!(in >> cameraView.x >> cameraView.y >> cameraView.w >> cameraView.h))
+                throw std::runtime_error("맵 형식 오류: CAMERAVIEW");
         } else if (tag == "BACKGROUND") {
             std::string b;
             if (!(in >> b)) throw std::runtime_error("맵 형식 오류: BACKGROUND");
@@ -187,6 +212,8 @@ void Map::Load(const std::string& path) {
     m_tiles = std::move(tiles);
     m_footholds = std::move(fhmap);
     m_spawn = spawn;
+    m_playerBounds = playerBounds;
+    m_cameraView = cameraView;
     m_portals = std::move(portals);
     m_objects = std::move(objects);
     m_mobs = std::move(mobs);

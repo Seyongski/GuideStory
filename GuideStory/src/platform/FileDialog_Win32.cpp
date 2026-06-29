@@ -143,4 +143,16 @@ std::optional<std::string> SaveFileDialog(const std::string& title,
     return std::nullopt;
 }
 
+SavePrompt AskSaveChanges(const std::string& title, const std::string& message) {
+    const std::wstring wtitle = Utf8ToWide(title);
+    const std::wstring wmsg = Utf8ToWide(message);
+    const int r = ::MessageBoxW(::GetActiveWindow(), wmsg.c_str(), wtitle.c_str(),
+                                MB_YESNOCANCEL | MB_ICONWARNING | MB_TASKMODAL);
+    switch (r) {
+        case IDYES: return SavePrompt::Save;
+        case IDNO:  return SavePrompt::Discard;
+        default:    return SavePrompt::Cancel; // IDCANCEL · ESC · 닫기
+    }
+}
+
 } // namespace gs::platform

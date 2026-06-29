@@ -56,9 +56,9 @@ void DataEditorScreen::Render(platform::IRenderDevice& r) {
         return;
     }
 
-    ui::DrawCenteredText(r, "편집 영역 (추후 구현)", kViewW * 0.5f, kViewH * 0.5f, 30.0f, kHint);
+    ui::DrawCenteredText(r, "편집 영역 (추후 구현)", kViewW * 0.5f, kWinH * 0.5f, 30.0f, kHint);
     if (!m_status.empty())
-        ui::DrawCenteredText(r, m_status, kViewW * 0.5f, kViewH * 0.5f + 48.0f, 20.0f, kNote);
+        ui::DrawCenteredText(r, m_status, kViewW * 0.5f, kWinH * 0.5f + 48.0f, 20.0f, kNote);
 
     r.FillRect({0.0f, 0.0f, kViewW, 40.0f}, kBar);
     m_toolbar.Render(r);

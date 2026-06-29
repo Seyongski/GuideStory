@@ -7,12 +7,14 @@
 #include <SDL_ttf.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace gs::platform {
@@ -212,8 +214,25 @@ TextureId SDLRenderDevice::LoadTexture(const std::string& path) {
         std::sort(ff.begin(), ff.end(), [](const FrameFile& x, const FrameFile& y) {
             return (x.start != y.start) ? x.start < y.start : x.file < y.file;
         });
-        for (const auto& f : ff) {
-            SDL_Surface* fs = IMG_Load(f.file.c_str());
+        // 로딩 최적화: PNG 디코드(IMG_Load)는 CPU 작업이라 여러 스레드로 병렬 처리한다 —
+        // 프레임 수가 많은 배경/몹 폴더의 첫 렌더 히치를 코어 수만큼 줄인다. SDL_Texture 생성은
+        // 렌더러(GPU 컨텍스트)에 묶여 메인 스레드 전용이므로 업로드만 순차로 한다.
+        std::vector<SDL_Surface*> surfaces(ff.size(), nullptr);
+        {
+            const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
+            const std::size_t nthreads = std::min<std::size_t>(hw, ff.size());
+            std::atomic<std::size_t> next{0};
+            auto worker = [&] {
+                for (std::size_t i = next.fetch_add(1); i < ff.size(); i = next.fetch_add(1))
+                    surfaces[i] = IMG_Load(ff[i].file.c_str());
+            };
+            std::vector<std::thread> pool;
+            for (std::size_t t = 1; t < nthreads; ++t) pool.emplace_back(worker);
+            worker();                       // 호출 스레드도 한 몫 거든다
+            for (auto& th : pool) th.join();
+        }
+        for (std::size_t i = 0; i < ff.size(); ++i) {
+            SDL_Surface* fs = surfaces[i];
             if (!fs) continue;
             SDL_Texture* ft = SDL_CreateTextureFromSurface(m_renderer.get(), fs);
             const int fw = fs->w, fh = fs->h;
@@ -221,8 +240,8 @@ TextureId SDLRenderDevice::LoadTexture(const std::string& path) {
             if (!ft) continue;
             SDL_SetTextureBlendMode(ft, SDL_BLENDMODE_BLEND); // PNG 알파를 배경과 합성
             img.frames.emplace_back(ft, &SDL_DestroyTexture);
-            img.delaysMs.push_back(f.durMs);
-            img.totalMs += f.durMs;
+            img.delaysMs.push_back(ff[i].durMs);
+            img.totalMs += ff[i].durMs;
             if (img.w == 0) { img.w = fw; img.h = fh; }
         }
         if (img.frames.empty())

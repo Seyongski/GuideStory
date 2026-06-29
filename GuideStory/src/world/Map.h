@@ -40,6 +40,18 @@ public:
     math::Vector2D Spawn() const           { return m_spawn; }
     void           SetSpawn(math::Vector2D v) { m_spawn = v; }
 
+    // 캐릭터 이동범위(빨강): 플레이어가 걸을 수 있는 영역 = 카메라가 보여줄 수 있는 한계(월드 좌표).
+    // w/h=0이면 미설정 → 배경/타일 경계(WorldBounds) 사용.
+    math::Rect PlayerBounds() const                 { return m_playerBounds; }
+    void       SetPlayerBounds(const math::Rect& r) { m_playerBounds = r; }
+    bool       HasPlayerBounds() const              { return m_playerBounds.w > 0.0f && m_playerBounds.h > 0.0f; }
+
+    // 게임 화면(파랑): 이 영역이 게임 창에 꽉 차게 확대 출력된다 → 폭이 줌을 정한다(작을수록 줌인).
+    // 카메라는 이 화면이 PlayerBounds 안에 머물도록 데드존으로 플레이어를 따라간다. w/h=0이면 미설정(줌 1).
+    math::Rect CameraView() const                   { return m_cameraView; }
+    void       SetCameraView(const math::Rect& r)   { m_cameraView = r; }
+    bool       HasCameraView() const                { return m_cameraView.w > 0.0f && m_cameraView.h > 0.0f; }
+
     std::vector<Portal>&       Portals()       { return m_portals; }
     const std::vector<Portal>& Portals() const { return m_portals; }
 
@@ -60,6 +72,7 @@ public:
     math::Vector2D BackgroundSize() const           { return m_bgSize; }
     void           SetBackgroundSize(math::Vector2D s) { m_bgSize = s; }
 
+
     // 월드 경계(픽셀): 카메라/플레이어 클램프와 경계 렌더에 쓴다.
     //  - 배경이 있고 크기를 알면 그 배경 사각형이 권위다(타일 격자가 배경보다 커도 배경 밖
     //    빈 영역이 카메라에 노출되지 않게 — ADR-008 시각/충돌 이중관리의 정렬, 사용자 결정).
@@ -71,14 +84,27 @@ public:
         return {0.0f, 0.0f, m_tiles.Width() * s, m_tiles.Height() * s};
     }
 
+    // 카메라·플레이어 제한 경계: 이동범위(빨강)가 있으면 그것, 없으면 배경/타일 경계.
+    // 게임이 카메라 클램프·플레이어 좌우벽·낙사 판정에 이 값을 쓴다(에디터 패닝은 WorldBounds 사용).
+    math::Rect CameraBounds() const {
+        return HasPlayerBounds() ? m_playerBounds : WorldBounds();
+    }
+
     // 실패 시 std::runtime_error를 던진다(ADR-005 파싱 견고성).
     void Save(const std::string& path) const;
     void Load(const std::string& path);
+
+    // 맵을 텍스트 포맷 문자열로 직렬화한다(Save가 파일에 쓰는 것과 동일 내용).
+    //  - includeBgSize=false면 BGSIZE 줄을 뺀다 → 에디터의 "변경됨" 비교용. 배경 픽셀 크기는
+    //    렌더에서 자동 측정되는 값이라 사용자 편집이 아니므로 변경 감지에서 제외한다.
+    std::string Serialize(bool includeBgSize = true) const;
 
 private:
     TileMap             m_tiles;
     FootholdMap         m_footholds;
     math::Vector2D      m_spawn{200.0f, 560.0f}; // 기본 스폰(v1 맵 하위호환)
+    math::Rect          m_playerBounds{};         // 캐릭터 이동범위(빨강). w/h=0=미설정
+    math::Rect          m_cameraView{};           // 게임 화면(파랑, 줌 결정). w/h=0=미설정(줌 1)
     std::vector<Portal>    m_portals;
     std::vector<MapObject> m_objects;             // 배치된 오브젝트(건물 등)
     std::vector<MapMob>    m_mobs;                 // 배치된 몬스터 스프라이트

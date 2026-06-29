@@ -21,6 +21,7 @@ public:
 
     void PollEvents() override;
     bool ShouldClose() const override;
+    void CancelClose() override { m_shouldClose = false; }
     const Input& GetInput() const override { return m_input; }
 
     // 동일 platform 계층 내부(예: SDLRenderDevice)에서만 사용하는 네이티브 핸들 접근자.

@@ -25,8 +25,9 @@ GameScreen::GameScreen(const core::InputMap& bindings, core::PlayerState& player
     }
 
     m_player.SetPosition(m_map.Spawn());
-    m_camera.SnapTo(m_player.Position()); // 시작은 플레이어에 맞춰 스냅(데드존 무시)
-    m_camera.ClampToBounds(m_map.WorldBounds());
+    if (m_map.HasCameraView()) m_camera.SetZoom(kViewW / m_map.CameraView().w); // 파랑 폭 → 줌
+    m_camera.SnapTo(m_player.Position());          // 시작은 플레이어에 스냅
+    m_camera.ClampToBounds(m_map.CameraBounds());  // 화면(파랑)이 이동범위(빨강) 안에 머물도록
 }
 
 SceneId GameScreen::Update(const platform::Input& in, float dt) {
@@ -44,10 +45,11 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
 
     m_player.Update(intent, m_map.Footholds(), dt);
 
-    // 월드 경계: 좌우 벽으로 가두고, 바닥 아래로 떨어지면 스폰으로 복귀.
-    const math::Rect wb = m_map.WorldBounds();
-    m_player.ClampX(wb.Left(), wb.Right());
-    if (m_player.Position().y > wb.Bottom() + 200.0f) {
+    // 좌우 벽 + 낙사 판정은 화면범위(VR; 없으면 배경 경계)로. 플레이어가 화면 밖으로 못 나간다.
+    const math::Rect cb = m_map.CameraBounds();
+    m_player.ClampX(cb.Left(), cb.Right());
+    // 바닥 아래로 떨어지면 스폰으로 복귀(아랫점프 = 메이플식 스폰 텔레포트).
+    if (m_player.Position().y > cb.Bottom() + 200.0f) {
         m_player.SetPosition(m_map.Spawn());
         m_camera.SnapTo(m_player.Position()); // 추락 부활도 순간이동 → 스냅
     }
@@ -55,9 +57,16 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
     // 포탈: 겹친 상태에서 ↑ 키로 대상 맵 이동.
     if (in.WasPressed(platform::Key::Up)) TryEnterPortal();
 
-    m_camera.Follow(m_player.Position());
-    m_camera.ClampToBounds(m_map.WorldBounds());
+    UpdateCamera();
     return SceneId::Stay; // 현재는 인게임 유지(ESC는 창에서 앱 종료).
+}
+
+void GameScreen::UpdateCamera() {
+    // 줌 = 게임 화면(파랑) 폭을 창 폭으로 채우는 배율. 데드존으로 플레이어를 추적하되 이동범위(빨강)로 클램프.
+    // 파랑 = 빨강이면 클램프가 매 프레임 중앙고정 → 카메라 고정. 파랑이 더 작으면 빨강 안에서 줌인된 채 스크롤.
+    m_camera.SetZoom(m_map.HasCameraView() ? kViewW / m_map.CameraView().w : 1.0f);
+    m_camera.Follow(m_player.Position());
+    m_camera.ClampToBounds(m_map.CameraBounds());
 }
 
 math::Rect GameScreen::PlayerRect() const {
@@ -94,8 +103,9 @@ void GameScreen::TryEnterPortal() {
             if (p.id == targetPortal) { dest = p.pos; break; }
     }
     m_player.SetPosition(dest);
+    m_camera.SetZoom(m_map.HasCameraView() ? kViewW / m_map.CameraView().w : 1.0f); // 새 맵 줌
     m_camera.SnapTo(dest); // 포탈 이동은 순간이동 → 스냅(데드존 추적은 다음 프레임부터)
-    m_camera.ClampToBounds(m_map.WorldBounds());
+    m_camera.ClampToBounds(m_map.CameraBounds());
 }
 
 void GameScreen::Render(platform::IRenderDevice& r) {

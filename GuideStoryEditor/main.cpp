@@ -3,6 +3,7 @@
 // SDL은 SDL_main으로 main을 재정의하므로 인자 시그니처를 맞춘다.
 
 #include "EditorApp.h"
+#include "EditorScreen.h" // 창 크기 상수(kWinW/kWinH)
 
 #include "platform/SDLRenderDevice.h"
 #include "platform/SDLWindow.h"
@@ -14,7 +15,9 @@
 
 int main(int /*argc*/, char* /*argv*/[]) {
     try {
-        gs::platform::SDLWindow window("GuideStory Editor", 1280, 720);
+        gs::platform::SDLWindow window("GuideStory Editor",
+                                       static_cast<int>(gs::app::kWinW),
+                                       static_cast<int>(gs::app::kWinH));
         gs::platform::SDLRenderDevice renderer(window);
 
         gs::app::EditorApp editor(window, renderer);

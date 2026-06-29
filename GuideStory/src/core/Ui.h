@@ -52,6 +52,32 @@ private:
     int               m_active = -1; // 활성 강조 대상(호출측이 SetActive로 지정).
 };
 
+// 가로 슬라이더(프로그래스바형). 트랙을 드래그하거나 클릭해 값을 [min,max]에서 고른다.
+// 마우스 전용 — 방향키/Enter를 소비하지 않아 편집 화면 단축키와 공존한다(Toolbar와 동일 정책).
+class Slider {
+public:
+    // 값 범위와 초기값. (예: 50~200, 100 = 줌 퍼센트)
+    void Setup(float minVal, float maxVal, float value);
+
+    // 트랙 사각형(화면 픽셀). 핸들은 이 안에서 좌우로 움직인다.
+    void Layout(float x, float y, float w, float h);
+
+    // 입력 처리. 이번 프레임에 값이 바뀌면 true(드래그/클릭). 내부 값은 항상 최신으로 유지.
+    bool Update(const platform::Input& in);
+
+    void Render(platform::IRenderDevice& r) const;
+
+    float Value() const { return m_value; }
+    void  SetValue(float v);
+    bool  Dragging() const { return m_dragging; } // 드래그 중이면 캔버스 입력을 막는 데 쓴다.
+
+private:
+    math::Rect m_rect{};
+    float m_min = 0.0f, m_max = 1.0f, m_value = 0.0f;
+    bool  m_hover = false;
+    bool  m_dragging = false;
+};
+
 // 세로로 쌓이는 버튼 메뉴. 마우스 호버/클릭과 위/아래/Enter 키를 함께 지원한다.
 // 활성화 로직만 담당하고, "무엇을 할지"는 호출측이 반환된 인덱스로 결정한다.
 class Menu {
