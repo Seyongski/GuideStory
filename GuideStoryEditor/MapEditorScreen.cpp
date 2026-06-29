@@ -428,6 +428,11 @@ ui::SearchBox* MapEditorScreen::ActiveSearch() {
 }
 
 void MapEditorScreen::BuildPalette(bool tiles, const std::string& query) {
+    const int kind = tiles ? 0 : 1;
+    if (kind == m_paletteKind && query == m_paletteQuery) return; // 종류·검색어 그대로면 캐시 사용
+    m_paletteKind = kind;
+    m_paletteQuery = query;
+
     m_paletteList.Clear();
     m_paletteIds.clear();
     const std::string q = ToLowerAscii(query);

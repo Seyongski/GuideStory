@@ -12,3 +12,10 @@ x86/
 
 # vcpkg manifest 설치 산출물 (vcpkg.json으로 재현 가능하므로 커밋 제외)
 vcpkg_installed/
+
+# 실행 캡처 로그(앱 stdout/stderr를 파일로 받은 것 — 커밋 대상 아님)
+*.out
+*.err
+*_out.txt
+*_err.txt
+*_stderr.txt

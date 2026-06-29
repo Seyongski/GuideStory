@@ -53,11 +53,14 @@ private:
     ui::Dropdown m_camMenu;    // 상단: 카메라(화면/이동범위)
     ui::Slider   m_zoomBar;    // 상단: 둘러보기 확인용 에디터 줌(저장 안 됨, 게임 영향 없음)
 
-    // 우측 팔레트(타일/오브젝트 공용). 검색어로 필터해 매 프레임 다시 채운다.
+    // 우측 팔레트(타일/오브젝트 공용). 검색어로 필터한 목록을 캐시하고, 종류·검색어가
+    // 바뀔 때만 다시 채운다(프레임당 Update·Render 두 번 호출돼도 한 번만 재구성).
     ui::SearchBox    m_tileSearch;  // 타일 종류 검색
     ui::SearchBox    m_objSearch;   // 오브젝트 종류 검색
     ui::Toolbar      m_paletteList; // 필터된 항목 버튼들(세로)
     std::vector<int> m_paletteIds;  // 목록 인덱스 → 실제 id(타일 번호) 또는 프리셋 인덱스
+    int              m_paletteKind = -1; // 현재 목록 내용: -1=없음, 0=타일, 1=오브젝트(캐시 무효화 키)
+    std::string      m_paletteQuery;     // 현재 목록을 만든 검색어(같으면 재구성 생략)
 
     // 사각형 편집 상태. 0=없음, 1=이동범위(빨강), 2=화면(파랑).
     //  - 좌클릭: 하얀 핸들(8개: 모서리+변 중앙)을 잡아 크기 조절(정밀).
