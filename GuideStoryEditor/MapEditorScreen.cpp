@@ -23,7 +23,8 @@ constexpr float kPanelW = 210.0f;
 constexpr float kPanelX = kViewW - kPanelW; // 우측 패널 좌측 경계
 
 enum EmptyItem { kNew0 = 0, kOpen0, kBack0 };
-enum QuickItem { kqBrowse = 0, kqGrid, kqBg };          // 단일 버튼(둘러보기/격자/배경)
+enum QuickItem { kqBrowse = 0, kqBg };                   // 단일 버튼(둘러보기/배경)
+enum GridItem  { kg8 = 0, kg16, kg32 };                  // 격자 드롭다운(스냅 칸 크기 px)
 enum AddItem   { kaTile = 0, kaFoothold, kaSpawn, kaPortal, kaObject }; // 추가 드롭다운
 enum CamItem   { kcView = 0, kcBounds };                 // 카메라 드롭다운(화면/이동범위)
 enum FileItem  { kfNew = 0, kfOpen, kfSave, kfSaveAs, kfBack };
@@ -108,11 +109,18 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     m_emptyMenu.Add("← 메뉴로");
     m_emptyMenu.Layout(kViewW * 0.5f, 320.0f, 320.0f, 60.0f, 18.0f);
 
-    // 상단 1행 좌측: 단일 버튼 [둘러보기][격자][배경] + 드롭다운 [추가▼][카메라▼].
+    // 상단 1행 좌측: 단일 버튼 [둘러보기][배경] + 드롭다운 [격자▼][추가▼][카메라▼].
     m_quick.Add("둘러보기");
-    m_quick.Add("격자");
     m_quick.Add("배경");
-    m_quick.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 8, 93, 178
+    m_quick.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 8, 93
+
+    // 격자: 스냅 칸 크기 8/16/32 px. 고르면 격자가 켜지고 그 간격으로 스냅·표시된다.
+    m_gridMenu.SetLabel("격자");
+    m_gridMenu.Add("8 px");
+    m_gridMenu.Add("16 px");
+    m_gridMenu.Add("32 px");
+    m_gridMenu.SetItemSize(82.0f, 30.0f, 2.0f);
+    m_gridMenu.LayoutButton(178.0f, 8.0f, 82.0f, 30.0f);
 
     m_addMenu.SetLabel("추가");
     m_addMenu.Add("타일");
@@ -191,22 +199,29 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
         if (!typing) return ConfirmLeave();
     }
 
-    // 둘러보기 확인용 줌(저장 안 됨). 둘러보기/사각형 편집에서만 적용(편집 모드는 1:1).
-    const bool inspect = (m_editor->Mode() == editor::EditMode::Browse) || (m_editingRect != 0);
-    if (!typing && inspect) m_zoomBar.Update(in);
-    m_camera.SetZoom(inspect ? m_zoomBar.Value() / 100.0f : 1.0f);
+    // 줌(저장 안 됨, 게임 영향 없음). 모든 모드에서 적용 — 확대한 상태 그대로 풋홀드/타일 등을 배치할 수
+    // 있다(모드 전환해도 줌이 풀리지 않는다). 슬라이더 드래그 + 마우스 휠 둘 다로 조정한다.
+    if (!typing) {
+        if (in.WheelDelta() != 0.0f)                       // 휠 한 칸 = 10% (위=확대, 아래=축소)
+            m_zoomBar.SetValue(m_zoomBar.Value() + in.WheelDelta() * 10.0f);
+        m_zoomBar.Update(in);
+    }
+    m_camera.SetZoom(m_zoomBar.Value() / 100.0f);
 
     // --- 상단 드롭다운(파일/추가/카메라) + 단일 버튼(둘러보기/격자/배경) ---
     bool menuClickConsumed = false;
     if (!typing) {
-        const bool wasOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() || m_camMenu.IsOpen();
+        const bool wasOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() ||
+                             m_camMenu.IsOpen() || m_gridMenu.IsOpen();
         const auto rFile = m_fileMenu.Update(in);
         const auto rAdd  = m_addMenu.Update(in);
         const auto rCam  = m_camMenu.Update(in);
+        const auto rGrid = m_gridMenu.Update(in);
         // 한 번에 하나만 열림: 방금 연 것만 남기고 나머지 닫는다.
-        if (rFile.toggled && m_fileMenu.IsOpen()) { m_addMenu.Close();  m_camMenu.Close(); }
-        if (rAdd.toggled  && m_addMenu.IsOpen())  { m_fileMenu.Close(); m_camMenu.Close(); }
-        if (rCam.toggled  && m_camMenu.IsOpen())  { m_fileMenu.Close(); m_addMenu.Close(); }
+        if (rFile.toggled && m_fileMenu.IsOpen()) { m_addMenu.Close();  m_camMenu.Close(); m_gridMenu.Close(); }
+        if (rAdd.toggled  && m_addMenu.IsOpen())  { m_fileMenu.Close(); m_camMenu.Close(); m_gridMenu.Close(); }
+        if (rCam.toggled  && m_camMenu.IsOpen())  { m_fileMenu.Close(); m_addMenu.Close(); m_gridMenu.Close(); }
+        if (rGrid.toggled && m_gridMenu.IsOpen()) { m_fileMenu.Close(); m_addMenu.Close(); m_camMenu.Close(); }
 
         switch (rFile.item) { // 파일
             case kfNew:    m_editor->NewMap(); return EditorScene::Stay;
@@ -231,9 +246,19 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
                            m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
             default: break;
         }
+        // 격자 칸 크기(px). 고르면 격자가 켜지고, 이미 켜진 '활성' 칸을 다시 누르면 격자를 끈다.
+        auto pickGrid = [&](int px) {
+            if (m_editor->GridOn() && m_editor->GridStep() == px) m_editor->SetGridOn(false);
+            else                                                  m_editor->SetGridStep(px);
+        };
+        switch (rGrid.item) {
+            case kg8:  pickGrid(8);  return EditorScene::Stay;
+            case kg16: pickGrid(16); return EditorScene::Stay;
+            case kg32: pickGrid(32); return EditorScene::Stay;
+            default: break;
+        }
         switch (m_quick.Update(in)) { // 단일 버튼
             case kqBrowse: m_editingRect = 0; m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
-            case kqGrid:   m_editor->ToggleGrid(); return EditorScene::Stay;
             case kqBg: {
                 const auto p = platform::OpenFileDialog("배경 이미지", "PNG 이미지", "*.png",
                                                         platform::AssetsDir("backgrounds"));
@@ -242,9 +267,10 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
             }
             default: break;
         }
-        menuClickConsumed = wasOpen || rFile.toggled || rAdd.toggled || rCam.toggled;
+        menuClickConsumed = wasOpen || rFile.toggled || rAdd.toggled || rCam.toggled || rGrid.toggled;
     }
-    const bool anyMenuOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() || m_camMenu.IsOpen();
+    const bool anyMenuOpen = m_fileMenu.IsOpen() || m_addMenu.IsOpen() ||
+                             m_camMenu.IsOpen() || m_gridMenu.IsOpen();
 
     // --- 우측 팔레트(타일/오브젝트): 검색 + 필터된 목록 ---
     if ((tilePalette || objPalette) && !typing) {
@@ -390,8 +416,14 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
     // 1행: 단일 버튼 + 드롭다운 헤더. 현재 상태에 따라 강조(active).
     m_quick.SetActive((m_editor->Mode() == editor::EditMode::Browse && m_editingRect == 0) ? kqBrowse : -1);
     m_quick.Render(r);
+    // 격자: 헤더에 현재 칸 크기를 보여주고(예 "격자 16"), 켜져 있으면 헤더와 해당 칸 항목을 밝게 강조한다.
+    const int gstep = m_editor->GridStep();
+    m_gridMenu.SetLabel("격자 " + std::to_string(gstep));
+    m_gridMenu.SetActive(m_editor->GridOn());
+    m_gridMenu.SetActiveItem(m_editor->GridOn() ? (gstep == 8 ? kg8 : gstep == 16 ? kg16 : kg32) : -1);
     m_addMenu.SetActive(m_editingRect == 0 && IsPlacement(m_editor->Mode()));
     m_camMenu.SetActive(m_editingRect != 0);
+    m_gridMenu.RenderHeader(r);
     m_addMenu.RenderHeader(r);
     m_camMenu.RenderHeader(r);
     m_fileMenu.RenderHeader(r);
@@ -405,6 +437,7 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
     m_fileMenu.RenderPopup(r);
     m_addMenu.RenderPopup(r);
     m_camMenu.RenderPopup(r);
+    m_gridMenu.RenderPopup(r);
 }
 
 // 닫기/뒤로 전 저장 안 된 변경 확인(네이티브 예/아니오/취소 창). 두 진입점(ESC·창닫기)에서 공유.

@@ -4,6 +4,7 @@
 #include "math/Vector2D.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace gs::core {
 
@@ -32,6 +33,20 @@ public:
         const float dy = target.y - m_center.y;
         if (dy >  deadH)      m_center.y += dy - deadH;
         else if (dy < -deadH) m_center.y += dy + deadH;
+    }
+
+    // 데드존 + 카메라 렉(지수 스무딩). 데드존 '목표 중심' G로 즉시 가지 않고 매 프레임 일부만 다가간다.
+    //  - k(1/초): 응답성. 클수록 렉↓(빨리 따라잡음). 게임층이 이동 속도로 계산해 넘긴다.
+    //  - a = 1 - exp(-k·dt): 프레임레이트 독립 보간 계수(Exponential Out 곡선). 상수 lerp는 fps에 따라
+    //    렉이 달라지므로 쓰지 않는다. 별도 속도 상태가 없어 SnapTo(순간이동)와도 충돌 없음.
+    void FollowLagged(math::Vector2D target, float dt, float k) {
+        const float deadW = m_deadHalfW / m_zoom;
+        const float deadH = m_deadHalfH / m_zoom;
+        const float gx = GoalCenter1D(m_center.x, target.x, deadW);
+        const float gy = GoalCenter1D(m_center.y, target.y, deadH);
+        const float a = 1.0f - std::exp(-k * dt);
+        m_center.x += (gx - m_center.x) * a;
+        m_center.y += (gy - m_center.y) * a;
     }
 
     void Move(math::Vector2D delta) { m_center += delta; } // 에디터 패닝
@@ -77,6 +92,14 @@ public:
     math::Rect WorldRectToScreen(const math::Rect& r) const {
         const math::Vector2D p = WorldToScreen({r.x, r.y});
         return {p.x, p.y, r.w * m_zoom, r.h * m_zoom};
+    }
+
+    // 데드존 목표 중심(1축): 목표가 데드존 밖이면 가장자리에 맞춘 중심, 안이면 현재 중심(정지).
+    static float GoalCenter1D(float center, float target, float deadHalf) {
+        const float d = target - center;
+        if (d >  deadHalf) return target - deadHalf;
+        if (d < -deadHalf) return target + deadHalf;
+        return center;
     }
 
 private:

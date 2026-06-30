@@ -38,6 +38,13 @@ public:
     void ToggleGrid() { m_showGrid = !m_showGrid; }
     bool GridOn() const { return m_showGrid; }
 
+    // 격자(스냅) 칸 크기 — 픽셀. 타일 크기와 독립된 '에디터 도구' 설정이라 맵(.gsmap)에 저장하지 않는다.
+    // 풋홀드/포탈/오브젝트는 픽셀 좌표라 이 값만 줄이면 정밀 배치가 된다(타일 배열·메모리는 그대로).
+    // 크기를 고르면 격자도 켠다(고르자마자 보이도록).
+    void SetGridStep(int px) { if (px > 0) { m_gridStep = px; m_showGrid = true; } }
+    int  GridStep() const { return m_gridStep; }
+    void SetGridOn(bool on) { m_showGrid = on; } // 격자(스냅) 켬/끔 — 드롭다운에서 활성 칸 다시 누르면 끈다
+
     // 배경 이미지 설정/조회. 절대 경로를 받아도 파일명만 맵에 저장한다(assets/backgrounds 기준).
     void SetBackground(const std::string& pathOrName);
     const std::string& Background() const { return m_map.Background(); }
@@ -75,6 +82,8 @@ private:
     math::Vector2D SnapTopLeft(math::Vector2D world) const; // 좌상단을 셀에 내림 정렬(오브젝트)
     int  PortalAt(math::Vector2D world) const;     // 히트된 포탈 인덱스, 없으면 -1
     int  ObjectAt(math::Vector2D world) const;     // 히트된 오브젝트 인덱스(위 우선), 없으면 -1
+    int  FootholdAt(math::Vector2D world, float tol) const; // 클릭 근처(선분 거리≤tol) 풋홀드 인덱스, 없으면 -1
+    void EraseConnectedFootholds(int index);       // 끝점을 공유로 연결된(수평 체인) 풋홀드를 모두 삭제
     void BeginTextEntry(TextTarget target, std::string initial);
     void CommitText();
     void RefreshNextIds(); // 로드/새맵 후 다음 풋홀드·포탈 id를 최대값+1로 복원
@@ -86,6 +95,7 @@ private:
     int            m_currentObject = 0;  // 선택된 오브젝트 프리셋(core::ObjectPalette 인덱스)
     EditMode       m_mode = EditMode::Browse; // 기본: 둘러보기(드래그 패닝)
     bool           m_showGrid = false;
+    int            m_gridStep = 32;      // 격자/스냅 칸 크기(픽셀). 기본=기존 타일 크기와 동일(8/16/32 선택).
 
     bool           m_panning = false;    // 좌드래그 패닝 진행 중
     math::Vector2D m_panLast{};          // 직전 프레임 마우스 위치(드래그 델타용)

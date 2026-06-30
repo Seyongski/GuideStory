@@ -49,6 +49,11 @@ void SDLWindow::PollEvents() {
             m_shouldClose = true;
         } else if (e.type == SDL_TEXTINPUT) {
             m_input.AppendText(e.text.text); // 타이핑된 문자(레이아웃/Shift 반영)
+        } else if (e.type == SDL_MOUSEWHEEL) {
+            // 휠은 폴링이 아니라 이벤트 — 한 프레임에 여러 번 올 수 있어 누적한다.
+            float y = e.wheel.preciseY;
+            if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) y = -y;
+            m_input.AddWheel(y);
         }
     }
 

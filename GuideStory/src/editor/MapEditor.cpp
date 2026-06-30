@@ -5,10 +5,12 @@
 #include "platform/FileDialog.h" // 네이티브 열기/저장 대화상자 + 자산 폴더
 #include "world/MapScaffold.h"   // BuildDefaultMap (새 맵)
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <filesystem>
 #include <sstream>
+#include <vector>
 
 namespace gs::editor {
 
@@ -40,15 +42,35 @@ std::string FileName(const std::string& path) {
     const auto pos = path.find_last_of("/\\");
     return (pos == std::string::npos) ? path : path.substr(pos + 1);
 }
+
+// 점 p에서 선분 a-b까지의 최단 거리(월드 픽셀). 풋홀드 클릭 히트테스트용.
+float DistToSegment(math::Vector2D p, math::Vector2D a, math::Vector2D b) {
+    const float vx = b.x - a.x, vy = b.y - a.y;
+    const float len2 = vx * vx + vy * vy;
+    float t = (len2 > 0.0f) ? ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2 : 0.0f;
+    t = std::clamp(t, 0.0f, 1.0f);
+    const float dx = p.x - (a.x + t * vx), dy = p.y - (a.y + t * vy);
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+// 두 풋홀드가 끝점을 공유하는가(연결됨). 격자 스냅으로 좌표가 맞아떨어지지만 float이라 여유를 둔다.
+bool FootholdsTouch(const world::Foothold& A, const world::Foothold& B) {
+    auto near = [](math::Vector2D p, math::Vector2D q) {
+        return std::abs(p.x - q.x) < 0.5f && std::abs(p.y - q.y) < 0.5f;
+    };
+    return near(A.p1, B.p1) || near(A.p1, B.p2) || near(A.p2, B.p1) || near(A.p2, B.p2);
+}
 } // namespace
 
 math::Vector2D MapEditor::SnapToGrid(math::Vector2D w) const {
-    const float s = static_cast<float>(m_map.Tiles().TileSize());
+    if (!m_showGrid) return w;                       // 격자 꺼짐 = 자유 배치(스냅 안 함)
+    const float s = static_cast<float>(m_gridStep);  // 타일 크기가 아니라 격자 step(8/16/32)
     return {std::round(w.x / s) * s, std::round(w.y / s) * s};
 }
 
 math::Vector2D MapEditor::SnapTopLeft(math::Vector2D w) const {
-    const float s = static_cast<float>(m_map.Tiles().TileSize());
+    if (!m_showGrid) return w;                       // 격자 꺼짐 = 자유 배치(스냅 안 함)
+    const float s = static_cast<float>(m_gridStep);  // 타일 크기가 아니라 격자 step(8/16/32)
     return {std::floor(w.x / s) * s, std::floor(w.y / s) * s};
 }
 
@@ -69,6 +91,36 @@ int MapEditor::ObjectAt(math::Vector2D world) const {
         if (wr.Contains(world)) return i;
     }
     return -1;
+}
+
+int MapEditor::FootholdAt(math::Vector2D world, float tol) const {
+    const auto& all = m_map.Footholds().All();
+    for (int i = 0; i < static_cast<int>(all.size()); ++i)
+        if (DistToSegment(world, all[i].p1, all[i].p2) <= tol) return i;
+    return -1;
+}
+
+// 끝점 공유(FootholdsTouch)로 이어진 연결요소를 BFS로 모은 뒤 한 번에 삭제한다.
+// = 클릭한 풋홀드가 속한 "수평으로 이어진 한 줄"이 통째로 사라진다. (추후 다른 삭제 방식 추가 예정)
+void MapEditor::EraseConnectedFootholds(int index) {
+    auto& all = m_map.Footholds().All();
+    if (index < 0 || index >= static_cast<int>(all.size())) return;
+
+    std::vector<bool> mark(all.size(), false);
+    std::vector<int>  stack{index};
+    mark[index] = true;
+    while (!stack.empty()) {
+        const int cur = stack.back();
+        stack.pop_back();
+        for (int i = 0; i < static_cast<int>(all.size()); ++i)
+            if (!mark[i] && FootholdsTouch(all[cur], all[i])) { mark[i] = true; stack.push_back(i); }
+    }
+
+    std::vector<world::Foothold> kept;
+    kept.reserve(all.size());
+    for (int i = 0; i < static_cast<int>(all.size()); ++i)
+        if (!mark[i]) kept.push_back(all[i]);
+    all = std::move(kept);
 }
 
 void MapEditor::SetMode(EditMode m) {
@@ -290,6 +342,21 @@ void MapEditor::Update(const platform::Input& in, core::Camera& cam, float dt, b
             break;
         }
         case EditMode::Foothold: {
+            // ALT + 좌클릭: 클릭한 풋홀드와 끝점으로 연결된(수평 체인) 풋홀드를 모두 삭제한다.
+            // 화면 6px 반경으로 잡되 줌을 반영(확대해도 같은 손맛). 추후 삭제 방식 더 추가 예정.
+            if (in.IsDown(Key::LAlt)) {
+                if (in.MousePressed(MouseButton::Left)) {
+                    const int hit = FootholdAt(worldMouse, 6.0f / cam.Zoom());
+                    if (hit >= 0) {
+                        EraseConnectedFootholds(hit);
+                        m_hasPending = false;
+                        m_status = "풋홀드 삭제(연결된 체인)";
+                    } else {
+                        m_status = "삭제할 풋홀드를 클릭하세요 (Alt+좌클릭)";
+                    }
+                }
+                break; // Alt 중에는 새 풋홀드를 찍지 않는다
+            }
             // 두 점을 찍어 풋홀드(선분) 생성. 그리드에 스냅.
             if (in.MousePressed(MouseButton::Left)) {
                 const math::Vector2D p = SnapToGrid(worldMouse);
@@ -387,23 +454,25 @@ void MapEditor::Render(platform::IRenderDevice& r, const core::Camera& cam) cons
     const auto& tm = m_map.Tiles();
     const float s = static_cast<float>(tm.TileSize());
 
-    if (m_showGrid && s > 0.0f) {
+    // 격자선은 격자 step(8/16/32) 간격으로 그린다 — 타일 크기와 독립(풋홀드/포탈/오브젝트 정밀 배치용).
+    const float g = static_cast<float>(m_gridStep);
+    if (m_showGrid && g > 0.0f) {
         // 격자는 뷰포트(툴바 아래 영역) 안에만 그린다.
         const math::Rect vp = cam.ViewportScreenRect();
         const math::Vector2D topLeft = cam.ScreenToWorld({vp.x, vp.y});
         const platform::Color grid{255, 255, 255, 40};
-        const int colsX = static_cast<int>(vp.w / s) + 2;
-        const int colsY = static_cast<int>(vp.h / s) + 2;
-        const int startX = static_cast<int>(std::floor(topLeft.x / s));
-        const int startY = static_cast<int>(std::floor(topLeft.y / s));
+        const int colsX = static_cast<int>(vp.w / g) + 2;
+        const int colsY = static_cast<int>(vp.h / g) + 2;
+        const int startX = static_cast<int>(std::floor(topLeft.x / g));
+        const int startY = static_cast<int>(std::floor(topLeft.y / g));
 
         for (int i = 0; i <= colsX; ++i) {
-            const float wx = (startX + i) * s;
+            const float wx = (startX + i) * g;
             const float sx = cam.WorldToScreen({wx, 0.0f}).x;
             r.DrawLine({sx, vp.y}, {sx, vp.Bottom()}, grid);
         }
         for (int j = 0; j <= colsY; ++j) {
-            const float wy = (startY + j) * s;
+            const float wy = (startY + j) * g;
             const float sy = cam.WorldToScreen({0.0f, wy}).y;
             r.DrawLine({vp.x, sy}, {vp.Right(), sy}, grid);
         }

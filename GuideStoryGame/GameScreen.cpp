@@ -4,11 +4,20 @@
 #include "platform/FileDialog.h" // MapPath: 맨 파일명을 자산 맵 폴더에 해석
 #include "world/MapScaffold.h"
 
+#include <cmath>
 #include <cstdio>
 #include <exception>
 #include <utility>
 
 namespace gs::app {
+
+namespace {
+// 카메라 렉 손맛: 응답성 k = kCamBase + kCamPerSpeed·이동속도 (1/초). 클수록 렉↓(빨리 따라잡음).
+// 정상상태 렉 거리 = v/k → 1/kCamPerSpeed(≈50px)로 상한 → 빠를수록 자동으로 빨리 붙어 화면 밖 이탈 방지.
+// 더블점프 등 빠른 이동은 '속도'가 커서 k가 알아서 오른다 — 상태별 분기 없음(전역 손맛값).
+constexpr float kCamBase     = 6.0f;
+constexpr float kCamPerSpeed = 0.02f;
+} // namespace
 
 GameScreen::GameScreen(const core::InputMap& bindings, core::PlayerState& playerState,
                        std::string mapPath)
@@ -57,15 +66,21 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
     // 포탈: 겹친 상태에서 ↑ 키로 대상 맵 이동.
     if (in.WasPressed(platform::Key::Up)) TryEnterPortal();
 
-    UpdateCamera();
+    UpdateCamera(dt);
     return SceneId::Stay; // 현재는 인게임 유지(ESC는 창에서 앱 종료).
 }
 
-void GameScreen::UpdateCamera() {
-    // 줌 = 게임 화면(파랑) 폭을 창 폭으로 채우는 배율. 데드존으로 플레이어를 추적하되 이동범위(빨강)로 클램프.
+void GameScreen::UpdateCamera(float dt) {
+    // 줌 = 게임 화면(파랑) 폭을 창 폭으로 채우는 배율. 데드존+렉으로 플레이어를 추적하되 이동범위(빨강)로 클램프.
     // 파랑 = 빨강이면 클램프가 매 프레임 중앙고정 → 카메라 고정. 파랑이 더 작으면 빨강 안에서 줌인된 채 스크롤.
     m_camera.SetZoom(m_map.HasCameraView() ? kViewW / m_map.CameraView().w : 1.0f);
-    m_camera.Follow(m_player.Position());
+
+    // 카메라 렉: 응답성 k를 '전체 이동 속도'(수직 포함 — 더블점프도 자연 반영)로만 결정한다.
+    const math::Vector2D v = m_player.Velocity();
+    const float speed = std::sqrt(v.x * v.x + v.y * v.y);
+    const float k = kCamBase + kCamPerSpeed * speed;
+    m_camera.FollowLagged(m_player.Position(), dt, k);
+
     m_camera.ClampToBounds(m_map.CameraBounds());
 }
 

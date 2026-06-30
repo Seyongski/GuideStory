@@ -32,8 +32,8 @@ private:
     void TryEnterPortal(); // 겹친 포탈이 있으면 대상 맵으로 이동
 
     // 카메라를 현재 맵 규칙대로 위치시킨다: 고정 맵이면 월드 중심에 박고(스크롤 없음),
-    // 아니면 데드존으로 플레이어를 추적한다. 둘 다 경계로 클램프.
-    void UpdateCamera();
+    // 아니면 데드존 + 속도 비례 렉으로 플레이어를 추적한다. 둘 다 경계로 클램프.
+    void UpdateCamera(float dt);
 
     const core::InputMap&         m_bindings;    // App 소유 — 수명은 App이 보장
     core::PlayerState&            m_playerState; // App 소유 — 마지막 맵 기억

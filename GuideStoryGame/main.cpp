@@ -14,7 +14,7 @@
 
 int main(int /*argc*/, char* /*argv*/[]) {
     try {
-        gs::platform::SDLWindow window("GuideStory", 1280, 720);
+        gs::platform::SDLWindow window("GuideStory", 1366, 768);
         gs::platform::SDLRenderDevice renderer(window);
 
         gs::app::App app(window, renderer);

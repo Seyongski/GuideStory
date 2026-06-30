@@ -97,6 +97,7 @@ public:
     void Open()  { m_open = true; }
     void Close() { m_open = false; }
     void SetActive(bool a) { m_active = a; } // 헤더 강조(현재 그 그룹의 모드일 때)
+    void SetActiveItem(int i) { m_activeItem = i; } // 펼친 목록에서 현재 선택된 항목 강조(-1=없음)
 
     // 한 프레임 입력. item>=0 = 그 항목이 선택됨(목록 닫힘). toggled = 헤더를 눌러 열고/닫음.
     struct Result { int item = -1; bool toggled = false; };
@@ -119,6 +120,7 @@ private:
     bool  m_open = false;
     bool  m_active = false;
     int   m_hover = -1;
+    int   m_activeItem = -1; // 펼친 목록에서 현재 선택(활성)된 항목 — 호버처럼 밝게 강조한다.
 };
 
 // 한 줄 검색 입력 칸. 클릭하면 포커스되어 타이핑을 받는다(한글=UTF-8 다중바이트 백스페이스 처리).

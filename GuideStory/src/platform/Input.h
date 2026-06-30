@@ -41,16 +41,21 @@ public:
     // 이번 프레임에 타이핑된 문자(UTF-8). 텍스트 입력 필드용(에디터 포탈 대상·맵 크기).
     const std::string& TextInput() const { return m_textInput; }
 
+    // 이번 프레임의 마우스 휠 누적량(위로=+, 아래로=-). 에디터 줌 등에 쓴다. 프레임마다 초기화.
+    float WheelDelta() const { return m_wheel; }
+
     // --- 아래는 platform 구현(SDLWindow)이 매 프레임 채운다 ---
     void BeginFrame() {                       // 현재 → 이전으로 이월
         m_keyPrev = m_keyDown;
         m_mousePrev = m_mouseDown;
         m_textInput.clear();                  // 타이핑 버퍼는 프레임마다 초기화
+        m_wheel = 0.0f;                       // 휠은 이벤트 누적이라 프레임마다 초기화
     }
     void SetKey(Key k, bool down)               { m_keyDown[Index(k)] = down; }
     void SetMouseButton(MouseButton b, bool down){ m_mouseDown[Index(b)] = down; }
     void SetMousePos(float x, float y)           { m_mousePos = {x, y}; }
     void AppendText(const char* utf8)            { if (utf8) m_textInput += utf8; }
+    void AddWheel(float dy)                      { m_wheel += dy; }
 
 private:
     static constexpr std::size_t Index(Key k)         { return static_cast<std::size_t>(k); }
@@ -65,6 +70,7 @@ private:
     std::array<bool, kMouseCount> m_mousePrev{};
     math::Vector2D                m_mousePos{};
     std::string                   m_textInput;
+    float                         m_wheel = 0.0f;
 };
 
 } // namespace gs::platform

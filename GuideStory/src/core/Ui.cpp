@@ -168,7 +168,7 @@ void Dropdown::RenderHeader(platform::IRenderDevice& r) const {
 void Dropdown::RenderPopup(platform::IRenderDevice& r) const {
     if (!m_open) return;
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
-        DrawButton(r, m_items[i].rect, m_items[i].label, i == m_hover, 19.0f);
+        DrawButton(r, m_items[i].rect, m_items[i].label, i == m_hover || i == m_activeItem, 19.0f);
 }
 
 bool SearchBox::Update(const platform::Input& in) {

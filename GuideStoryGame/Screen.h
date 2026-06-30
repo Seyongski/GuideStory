@@ -6,8 +6,8 @@
 namespace gs::app {
 
 // 1차: 윈도우 크기 고정(IWindow에 크기 질의 추가 전까지 상수). 메뉴 레이아웃의 기준.
-inline constexpr float kViewW = 1280.0f;
-inline constexpr float kViewH = 720.0f;
+inline constexpr float kViewW = 1366.0f;
+inline constexpr float kViewH = 768.0f;
 
 // 장면(화면) 식별자. Update가 반환해 App 호스트 루프가 전환을 수행한다.
 //  - Stay     : 현재 장면 유지
