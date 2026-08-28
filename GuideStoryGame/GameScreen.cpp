@@ -17,11 +17,16 @@ namespace {
 // 더블점프 등 빠른 이동은 '속도'가 커서 k가 알아서 오른다 — 상태별 분기 없음(전역 손맛값).
 constexpr float kCamBase     = 6.0f;
 constexpr float kCamPerSpeed = 0.02f;
+
+// 채팅 줄 색. 채널이 색으로 구분돼야 전체와 귓속말을 눈으로 즉시 가른다.
+constexpr platform::Color kChatAll    {235, 240, 250, 255};
+constexpr platform::Color kChatWhisper{240, 170, 230, 255};
+constexpr platform::Color kChatSystem {235, 205, 130, 255};
 } // namespace
 
-GameScreen::GameScreen(const core::InputMap& bindings, core::PlayerState& playerState,
-                       std::string mapPath)
-    : m_bindings(bindings), m_playerState(playerState), m_camera(kViewW, kViewH) {
+GameScreen::GameScreen(net::NetClient& net, const core::InputMap& bindings,
+                       core::PlayerState& playerState, std::string mapPath)
+    : m_net(net), m_bindings(bindings), m_playerState(playerState), m_camera(kViewW, kViewH) {
     // 에디터가 저장한 맵을 로드한다(자산 폴더 assets/maps에서 해석).
     // 실패하면 기본 맵으로 폴백하고 계속 실행한다.
     try {
@@ -37,19 +42,32 @@ GameScreen::GameScreen(const core::InputMap& bindings, core::PlayerState& player
     if (m_map.HasCameraView()) m_camera.SetZoom(kViewW / m_map.CameraView().w); // 파랑 폭 → 줌
     m_camera.SnapTo(m_player.Position());          // 시작은 플레이어에 스냅
     m_camera.ClampToBounds(m_map.CameraBounds());  // 화면(파랑)이 이동범위(빨강) 안에 머물도록
+
+    m_chat.Layout(kViewW, kViewH);
+    m_chat.Add(m_net.LoggedIn() ? "Enter 를 눌러 채팅을 입력하세요."
+                                : "서버에 로그인되어 있지 않아 채팅을 보낼 수 없습니다.",
+               kChatSystem);
 }
 
 SceneId GameScreen::Update(const platform::Input& in, float dt) {
+    // 채팅 입력줄이 먼저 입력을 본다. 열려 있으면 이동/점프 키를 소비하지 않는다 —
+    // 그러지 않으면 채팅을 치는 동안 캐릭터가 같이 움직인다.
+    std::string typed;
+    if (m_chat.Update(in, typed)) SubmitChat(typed);
+    const bool chatting = m_chat.InputActive();
+
     // 입력 → 이동 의도 번역.
     physics::MoveIntent intent;
-    if (in.IsDown(platform::Key::Left))  intent.moveX -= 1.0f;
-    if (in.IsDown(platform::Key::Right)) intent.moveX += 1.0f;
+    if (!chatting) {
+        if (in.IsDown(platform::Key::Left))  intent.moveX -= 1.0f;
+        if (in.IsDown(platform::Key::Right)) intent.moveX += 1.0f;
 
-    const bool jumpEdge = m_bindings.WasPressed(in, core::Action::Jump); // 기본 Alt, 키세팅으로 변경 가능
-    if (jumpEdge && in.IsDown(platform::Key::Down)) {
-        intent.dropDown = true; // ↓ + 점프 = 드롭다운
-    } else if (jumpEdge) {
-        intent.jump = true;
+        const bool jumpEdge = m_bindings.WasPressed(in, core::Action::Jump); // 기본 Alt, 키세팅으로 변경 가능
+        if (jumpEdge && in.IsDown(platform::Key::Down)) {
+            intent.dropDown = true; // ↓ + 점프 = 드롭다운
+        } else if (jumpEdge) {
+            intent.jump = true;
+        }
     }
 
     m_player.Update(intent, m_map.Footholds(), dt);
@@ -64,10 +82,70 @@ SceneId GameScreen::Update(const platform::Input& in, float dt) {
     }
 
     // 포탈: 겹친 상태에서 ↑ 키로 대상 맵 이동.
-    if (in.WasPressed(platform::Key::Up)) TryEnterPortal();
+    if (!chatting && in.WasPressed(platform::Key::Up)) TryEnterPortal();
 
     UpdateCamera(dt);
     return SceneId::Stay; // 현재는 인게임 유지(ESC는 창에서 앱 종료).
+}
+
+void GameScreen::SubmitChat(const std::string& line) {
+    if (!m_net.LoggedIn()) {
+        m_chat.Add("로그인되어 있지 않습니다. 메시지를 보내지 못했습니다.", kChatSystem);
+        return;
+    }
+
+    // "/w 닉네임 내용" = 귓속말. 대상을 닉네임으로 받는 이유는 Protocol.h 의 ChatSendBody 주석 참고.
+    constexpr const char* kWhisperPrefix = "/w ";
+    if (line.rfind(kWhisperPrefix, 0) == 0) {
+        const std::size_t nameStart = 3;
+        const std::size_t space = line.find(' ', nameStart);
+        if (space == std::string::npos || space + 1 >= line.size()) {
+            m_chat.Add("사용법: /w 닉네임 내용", kChatSystem);
+            return;
+        }
+        const std::string target = line.substr(nameStart, space - nameStart);
+        const std::string text   = line.substr(space + 1);
+        if (!m_net.SendChat(net::ChatChannel::Whisper, target, text)) {
+            m_chat.Add("귓속말을 보내지 못했습니다(내용이 비었거나 너무 깁니다).", kChatSystem);
+        }
+        return;
+    }
+
+    if (!m_net.SendChat(net::ChatChannel::All, "", line)) {
+        m_chat.Add("메시지를 보내지 못했습니다(내용이 너무 깁니다).", kChatSystem);
+    }
+}
+
+void GameScreen::OnNetEvent(const net::NetEvent& ev) {
+    switch (ev.type) {
+        case net::NetEventType::Chat:
+            switch (ev.channel) {
+                case net::ChatChannel::Whisper:
+                    // 받은 귓속말. 보낸 쪽에는 서버가 시스템 줄로 따로 알려준다.
+                    m_chat.Add("[" + ev.name + " 님으로부터] " + ev.text, kChatWhisper);
+                    break;
+                case net::ChatChannel::System:
+                    m_chat.Add(ev.text, kChatSystem);
+                    break;
+                default:
+                    m_chat.Add(ev.name + ": " + ev.text, kChatAll);
+                    break;
+            }
+            break;
+
+        case net::NetEventType::Disconnected:
+        case net::NetEventType::ConnectFailed:
+            m_chat.Add("서버와 연결이 끊어졌습니다. 다시 연결 중…", kChatSystem);
+            break;
+
+        case net::NetEventType::LoginAck:
+            // 끊겼다가 워커가 저장된 자격으로 자동 재로그인한 경우다(사용자는 아무것도 안 했다).
+            if (ev.success) m_chat.Add("서버에 다시 연결되었습니다.", kChatSystem);
+            break;
+
+        default:
+            break;
+    }
 }
 
 void GameScreen::UpdateCamera(float dt) {
@@ -129,6 +207,7 @@ void GameScreen::Render(platform::IRenderDevice& r) {
     // 배경 PNG → 타일 → 오브젝트 → 풋홀드/포탈은 공유 WorldRenderer가 단일 출처로 그린다(에디터와 동일).
     core::RenderWorld(r, m_camera, m_map);
     RenderPlayer(r);
+    m_chat.Render(r);   // 월드 위에 겹친다
 }
 
 void GameScreen::RenderPlayer(platform::IRenderDevice& r) {

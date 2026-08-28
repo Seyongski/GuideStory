@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{a41d7c90-58b2-4f16-9e0a-27c6b3d18f45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="공유 (net)">
+      <UniqueIdentifier>{5c9e2b31-7f44-4a08-b6d2-91e3a70c5b28}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty">
+      <UniqueIdentifier>{e2704a16-9c53-4d7b-8f31-6ad0e4b91c07}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Server.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Accounts.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ChatLog.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Crypto.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Session.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GuideStory\src\net\Framing.cpp">
+      <Filter>공유 (net)</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\sqlite\sqlite3.c">
+      <Filter>ThirdParty</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Accounts.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ChatLog.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Crypto.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Session.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GuideStory\src\net\Protocol.h">
+      <Filter>공유 (net)</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GuideStory\src\net\Framing.h">
+      <Filter>공유 (net)</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GuideStory\src\net\Socket.h">
+      <Filter>공유 (net)</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

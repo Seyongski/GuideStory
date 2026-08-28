@@ -22,6 +22,44 @@
     <Filter Include="src\core">
       <UniqueIdentifier>{ad5469e8-12f5-4bc1-983b-409c12a8a979}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\net">
+      <UniqueIdentifier>{6b1f0e42-3d5a-4c88-9a71-0c2f4b6e51d3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\net\Framing.cpp">
+      <Filter>src\net</Filter>
+    </ClCompile>
+    <ClCompile Include="src\net\NetClient.cpp">
+      <Filter>src\net</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\ChatOverlay.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClInclude Include="src\net\Protocol.h">
+      <Filter>src\net</Filter>
+    </ClInclude>
+    <ClInclude Include="src\net\Framing.h">
+      <Filter>src\net</Filter>
+    </ClInclude>
+    <ClInclude Include="src\net\Socket.h">
+      <Filter>src\net</Filter>
+    </ClInclude>
+    <ClInclude Include="src\net\NetClient.h">
+      <Filter>src\net</Filter>
+    </ClInclude>
+    <ClInclude Include="src\net\ServerConfig.h">
+      <Filter>src\net</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\ChatOverlay.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\PlayerState.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\HostLoop.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\platform\SDLWindow.cpp">

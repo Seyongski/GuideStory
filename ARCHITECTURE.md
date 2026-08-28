@@ -12,7 +12,9 @@
 | 언어 표준 | **C++20** | ⚠️ vcxproj에 `LanguageStandard` 미설정 — [tech-debt-tracker.md](tech-debt-tracker.md) D-002 |
 | 플랫폼 | Win32 / x64 (Console) | 서버·AI는 x64 권장 |
 | 클라이언트 그래픽 | SDL2 (+ SDL2_ttf, SDL2_image) | 추상화 레이어 뒤로 격리 (ADR-006). 텍스트는 `IRenderDevice::DrawText`, 이미지는 `LoadTexture`/`DrawTexture`로 은닉(구현만 SDL_ttf/SDL_image). PNG 디코딩=SDL_image |
-| 네트워크 | WinSock (IOCP / Select) | 데디케이트 서버 (ADR-001) |
+| 네트워크 | WinSock / POSIX 소켓 (`net/Socket.h` 뒤로 격리) | 데디케이트 서버 (ADR-001). 1차는 **접속당 스레드 1개** — IOCP/epoll 비교의 기준선 |
+| 서버 저장소 | SQLite 3.47.1 (앰알가메이션 동봉) | 계정 + 채팅 로그. vcpkg 없이 서버 단독 빌드 — [`ThirdParty/sqlite`](ThirdParty/sqlite/README.md) |
+| 비밀번호 | PBKDF2-HMAC-SHA256 (10만 회) + 16바이트 솔트 | 외부 라이브러리 없이 자체 구현(`GuideStoryServer/src/Crypto.h`). ⚠️ 전송 구간은 평문 — D-008 |
 | AI 학습/추론 | Python(학습) + libtorch(C++ 추론) | ADR-007 |
 | C++ ↔ Python | ZMQ 또는 Socket | ADR-007 |
 | 데이터 포맷 | JSON / CSV | 데이터 주도 (ADR-005) |
@@ -43,7 +45,7 @@
 
 ```
 GuideStory/
-├─ GuideStory.sln                  # 3 프로젝트 (ADR-009)
+├─ GuideStory.sln                  # 4 프로젝트 (ADR-009 + 서버)
 ├─ GuideStory/                     # ▶ GuideStoryEngine (정적 라이브러리)
 │  ├─ GuideStory.vcxproj
 │  └─ src/
@@ -56,16 +58,23 @@ GuideStory/
 │     ├─ physics/     # PlatformerController; AABB, QuadTree (ADR-004)
 │     ├─ ai/          # 몬스터 FSM, libtorch 추론 브리지 (ADR-007)
 │     ├─ data/        # DataManager: JSON/CSV 로드·캐싱 (ADR-005)
-│     └─ net/         # WinSock 패킷·세션·서버 루프 (ADR-001)
+│     └─ net/         # Protocol(서버와 공유) · Framing · Socket · NetClient(워커 스레드) (ADR-001)
 ├─ GuideStoryEditor/               # ▶ GuideStoryEditor.exe (편집·저장)
 │  └─ main.cpp + EditorApp(호스트 루프) + EditorScreen(화면 인터페이스)
 │     + LauncherScreen + MapEditorScreen + DataEditorScreen(플레이어/스킬/몬스터/NPC 공유 골격)
 │     # 화면 흐름: 선택 화면 → 각 에디터(빈 화면 → 새로 만들기/열기 → 편집 → 저장)
-└─ GuideStoryGame/                 # ▶ GuideStoryGame.exe (맵 로드·플레이)
-   └─ main.cpp + App(호스트 루프) + Screen(장면 인터페이스)
-      + LoginScreen / MainMenuScreen / GameScreen   # Ui 위젯은 엔진 core/로 이동(두 앱 공유)
-      # 장면 흐름: 로그인창 → 메인화면(게임시작/환경설정/로그아웃/게임종료) → 인게임
+├─ GuideStoryGame/                 # ▶ GuideStoryGame.exe (맵 로드·플레이)
+│  └─ main.cpp + App(호스트 루프) + Screen(장면 인터페이스)
+│     + LoginScreen / MainMenuScreen / GameScreen   # Ui 위젯은 엔진 core/로 이동(두 앱 공유)
+│     # 장면 흐름: 로그인창(서버 인증) → 메인화면(게임시작/환경설정/로그아웃/게임종료) → 인게임(채팅)
+└─ GuideStoryServer/               # ▶ GuideStoryServer.exe (계정·채팅 서버, 콘솔)
+   └─ src/ Server(accept 루프 + 접속당 스레드) · Session · Accounts(동기 SQLite)
+      · ChatLog(비동기 SQLite) · Crypto(SHA-256/PBKDF2)
+      # SDL/vcpkg 비의존 — 엔진 lib을 참조하지 않고 net/의 소스만 함께 컴파일한다
 ```
+> **서버는 엔진 라이브러리를 링크하지 않는다.** 공유하는 것은 `net/Protocol.h`·`Framing.cpp`
+> 소스뿐이다. 그래야 서버만 배포하는 상황에서 SDL 의존성 트리를 복원할 필요가 없다
+> (그리고 프로토콜은 한 소스에서 나오므로 양쪽이 어긋날 수 없다).
 > 엔진 라이브러리는 `main`/호스트 루프를 갖지 않는다. 두 앱이 각자 합성 루트(`main`)에서
 > `SDLWindow`/`SDLRenderDevice`를 생성해 `EditorApp`/`GameApp`에 주입한다 (ADR-009).
 
@@ -78,7 +87,7 @@ GuideStory/
 | physics | 충돌·공간분할 | ✗ | ADR-004 |
 | ai | FSM·추론 | ✗ | ADR-007 |
 | data | 데이터 로드 | ✗ | ADR-005 |
-| net | 네트워크 | ✗ | ADR-001 |
+| net | 프로토콜·프레이밍·클라이언트 워커 | ✗ (winsock2.h는 `NetClient.cpp` 안에만) | ADR-001 |
 
 > **불변 규칙**: `core/ecs/physics/ai/data/net` 같은 **비즈니스 로직은 SDL 네이티브 타입(SDL_Renderer, SDL_Rect 등)에 의존하지 않는다.** SDL은 `platform/` 뒤에만 존재한다. (ADR-006)
 
@@ -92,6 +101,28 @@ GuideStory/
 - **이유**: 치팅 방지, 단일 진실 원천, 멀티플레이어 동기화의 기반.
 - **트레이드오프**: 입력 지연(RTT)↑ → 클라 예측/보간 필요. 서버 연산 부하↑.
 - **증명 과제**: WinSock IOCP/Select 모델 비교, 멀티스레드 서버에서 N명이 한 맵에서 동기화되는지 검증. 패킷 구조체 설계 근거 기록.
+
+#### 1단계 — 계정 + 채팅 (완료)
+서버가 월드 상태를 갖기 전에, **"인증된 세션과 그들 사이의 메시지"** 까지를 먼저 세웠다.
+이동 동기화를 먼저 만들면 "누가 누구인지" 가 없어서 결과를 누구에게 보낼지 정할 수 없다.
+
+- **프로토콜은 헤더 하나를 공유한다** (`net/Protocol.h`를 서버·클라이언트가 같이 컴파일).
+  각자 정의를 들고 있으면 한쪽만 고쳤을 때 조용히 어긋난다.
+  - 첫 필드가 `Version`인 이유: 구조체 크기가 서로 달라도 그 2바이트는 읽을 수 있어야
+    "버전이 안 맞다"고 **정확한 사유**를 돌려줄 수 있다.
+  - `#pragma pack(1)` + `static_assert(sizeof(...))`: 패딩 사고를 런타임이 아니라 빌드에서 잡는다.
+  - 옵코드는 **항상 끝에 추가**한다. 중간에 끼우면 뒤 번호가 밀려 엉뚱한 핸들러가 받는다.
+- **길이 프리픽스 프레이밍**: TCP는 메시지 경계를 보장하지 않으므로 `BodySize`로 직접 자른다.
+  선언된 길이를 신뢰하기 **전에** 상한을 검사한다(안 하면 위조된 크기로 서버 메모리가 터진다).
+- **신원은 서버가 채운다**: 발신자 이름/UserId를 클라이언트 패킷에서 옮기지 않는다(사칭 방지).
+- **스레드 모델**: 서버 = 접속당 스레드 1개, 클라이언트 = 소켓 워커 1개 + 사건 큐.
+  게임 스레드는 소켓을, 워커 스레드는 화면을 서로 만지지 않는다.
+- **저장소의 보증 수준을 갈랐다**: 계정은 동기 + `synchronous=FULL`("가입했는데 계정이 없다"는
+  있을 수 없다), 채팅 로그는 비동기 큐 + `NORMAL`(몇 줄 유실보다 지연이 나쁘다).
+- **알려진 한계**: 비밀번호 평문 전송(D-008), 모든 send가 세션 락 안(D-009).
+- 다음 단계는 서버가 맵/좌표를 갖고 이동을 판정하는 것이다. 그때 옵코드를 뒤에 붙여 늘린다.
+- 출처: `Unreal-MOU/MOU_Server`. 언리얼 의존과 4인 co-op 전제 기능(방/로비, 팀·사망 채널,
+  친구·메신저)은 지속 월드에 맞지 않아 가져오지 않았다.
 
 ### ADR-002 — RAII + 스마트 포인터 (자원 수명 관리)
 - **결정**: SDL의 C 스타일 할당/해제를 C++ 클래스 생성자/소멸자(RAII)로 캡슐화. `TextureManager`, `WindowManager`는 **Custom Deleter** 를 가진 스마트 포인터로 SDL 핸들 관리.
@@ -150,7 +181,7 @@ GuideStory/
 
 | ID | 증명 과제 | 산출물 | 상태 |
 |----|-----------|--------|------|
-| ADR-001 | IOCP/Select 비교 + N명 동기화 검증 | 비교표, 검증 로그 | ☐ 미착수 |
+| ADR-001 | IOCP/Select 비교 + N명 동기화 검증 | 비교표, 검증 로그 | ◐ 진행 중 (1단계 계정+채팅 서버 구축·검증 완료. IOCP/epoll 비교와 월드 동기화 미착수) |
 | ADR-002 | Custom Deleter RAII 래핑 기록 | 코드 + 회고 | ◐ 진행 중 (SDLWindow/SDLRenderDevice/SDL_Texture 적용, 회고 미작성) |
 | ADR-003 | 상속→컴포넌트 전환 장단점 비교 | 비교 문서 | ☐ 미착수 |
 | ADR-004 | 브루트포스 vs QuadTree 벤치마크 | ms/CPU 데이터, 한계 분석 | ☐ 미착수 |
@@ -179,10 +210,19 @@ $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Curr
 & $msbuild GuideStory.sln /p:Configuration=Debug /p:Platform=x64
 
 # 3) 실행
+#    서버(계정/채팅): 게임보다 먼저 띄운다. 없어도 게임은 뜨지만 로그인이 안 된다.
+.\x64\Debug\GuideStoryServer.exe            # 기본 7777 포트, guidestory.db
 #    에디터: 선택 화면 → 맵 에디터에서 편집, [저장]/[열기]는 네이티브 파일 대화상자
 .\x64\Debug\GuideStoryEditor.exe
-#    게임: assets/maps/field01.gsmap 로드 후 플레이(없으면 기본 맵으로 폴백)
+#    게임: 로그인 → 메인화면 → 인게임(assets/maps 로드, 없으면 기본 맵으로 폴백)
 .\x64\Debug\GuideStoryGame.exe
+```
+
+**서버만 따로 빌드**할 수도 있다. SDL을 쓰지 않으므로 vcpkg 복원이 필요 없다
+(산출물은 솔루션이 아닌 `GuideStoryServer\x64\Debug\`에 놓인다).
+
+```powershell
+& $msbuild GuideStoryServer\GuideStoryServer.vcxproj /p:Configuration=Debug /p:Platform=x64
 ```
 
 - **자산 폴더**: 에디터가 만든 맵 등은 리포 루트의 `assets/maps/`에 저장하고 게임이 같은 곳에서 로드한다.
@@ -198,7 +238,12 @@ $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Curr
   오브젝트는 1차로 단색 프리셋(`core::ObjectPalette` — 크기 타일 단위 + 색)이며, 추후 스프라이트로 확장. 충돌은 풋홀드가 담당(ADR-008).
 - **배경이 카메라/시각 범위의 권위**: 배경이 설정된 맵은 `Map::WorldBounds()`가 배경 원본 픽셀 크기(맵 파일 `BGSIZE`)를 반환한다(없으면 타일 격자로 폴백). 타일 격자(32배수 양자화)가 배경보다 커도 배경 밖 빈 영역이 카메라에 노출되지 않는다. 배경 크기는 에디터가 렌더에서 측정해 맵에 심고 저장 시 기록한다. (데드존/스크롤박스 카메라는 추후 도입 — [docs/design-patterns.md](docs/design-patterns.md) 결정 절차에 따름.)
 - **MapleStory 리소스**: WzComparerR로 추출한 배경/스프라이트는 WZ `.img` 노드 포맷이라 SDL_image로 직접 못 읽는다 — **PNG로 export** 후 `assets/`에 둔다(`.img/.wz` 직접 파싱은 별도 과제).
-- WinSock 링크는 3단계 net 모듈 착수 시 추가 → [tech-debt-tracker.md](tech-debt-tracker.md) D-005.
+- **서버 접속 주소**: `assets/config/server.txt`(`HOST`/`PORT`)에서 읽는다. 빌드 없이 바꿀 수 있고,
+  파일이 없으면 기본값 `127.0.0.1:7777`을 쓴다(서버를 안 띄우고 게임만 볼 때 오류가 아니다).
+  키 설정·플레이어 상태와 같은 폴더, 같은 경량 텍스트 포맷이다.
+- **WinSock 링크**는 `net/Socket.h`의 `#pragma comment(lib, "ws2_32.lib")`로 해결했다(D-005 상환).
+  vcxproj마다 링크 설정을 중복하지 않고, 이 헤더를 쓰는 프로젝트가 자동으로 링크된다.
+- **계정/채팅 DB**는 실행 폴더의 `guidestory.db`(WAL 파일 포함)에 생긴다 — `.gitignore` 제외.
 
 ## 7. 관련 문서
 

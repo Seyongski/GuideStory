@@ -5,6 +5,7 @@
 #include "platform/IRenderDevice.h"
 #include "platform/Input.h"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -123,28 +124,66 @@ private:
     int   m_activeItem = -1; // 펼친 목록에서 현재 선택(활성)된 항목 — 호버처럼 밝게 강조한다.
 };
 
-// 한 줄 검색 입력 칸. 클릭하면 포커스되어 타이핑을 받는다(한글=UTF-8 다중바이트 백스페이스 처리).
-// 팔레트(타일/오브젝트) 상단에 두어 목록을 이름으로 거른다. 포커스 중에는 호출측이 편집 단축키를 막는다.
-class SearchBox {
+// 한 줄 텍스트 입력 칸. 클릭하면 포커스되어 타이핑을 받는다(한글=UTF-8 다중바이트 백스페이스 처리).
+// 팔레트 검색(SearchBox), 로그인 아이디/비밀번호, 채팅 입력줄이 모두 이 하나를 쓴다.
+// 포커스 중에는 호출측이 편집/이동 단축키를 막아야 한다 — 안 그러면 타이핑이 그대로 조작이 된다.
+class TextField {
 public:
     void Layout(float x, float y, float w, float h) { m_rect = {x, y, w, h}; }
     void SetPlaceholder(std::string p) { m_placeholder = std::move(p); }
 
-    // 한 프레임 입력(포커스 토글 + 타이핑). 텍스트가 바뀌면 true(목록 다시 필터).
-    bool Update(const platform::Input& in);
+    // 비밀번호 칸: 내용은 그대로 두고 화면에만 가림문자를 그린다.
+    void SetPassword(bool on) { m_password = on; }
+
+    // 최대 바이트 수(UTF-8 기준). 프로토콜 고정 배열은 널 종료를 포함하므로 그 크기-1을 준다.
+    // 넘치는 입력은 조용히 무시한다 — 서버가 어차피 자르므로, 화면에는 보이는데 서버에는
+    // 다른 값이 저장되는 상황을 만들지 않기 위함이다.
+    void SetMaxBytes(std::size_t n) { m_maxBytes = n; }
+
+    // 한 프레임 입력(포커스 토글 + 타이핑 + Enter).
+    //  - changed  : 텍스트가 바뀌었다(검색 필터 갱신 등).
+    //  - submitted: 포커스 상태에서 Enter 를 눌렀다(로그인·채팅 전송 등).
+    struct Result {
+        bool changed   = false;
+        bool submitted = false;
+    };
+    Result Update(const platform::Input& in);
     void Render(platform::IRenderDevice& r) const;
 
     const std::string& Text() const { return m_text; }
     bool Focused() const     { return m_focused; }
     void SetFocused(bool f)  { m_focused = f; }
     void Clear()             { m_text.clear(); }
+    void SetText(std::string t) { m_text = std::move(t); }
 
 private:
     math::Rect  m_rect{};
     std::string m_text;
     std::string m_placeholder;
-    bool        m_focused = false;
-    bool        m_hover = false;
+    bool        m_focused  = false;
+    bool        m_hover    = false;
+    bool        m_password = false;
+    std::size_t m_maxBytes = 256;
+};
+
+// 팔레트(타일/오브젝트) 상단의 검색 칸. TextField 를 "이름으로 거르는 용도" 로 좁힌 것으로,
+// Enter 는 쓰지 않고 "내용이 바뀌었는가" 만 알려준다.
+class SearchBox {
+public:
+    void Layout(float x, float y, float w, float h) { m_field.Layout(x, y, w, h); }
+    void SetPlaceholder(std::string p) { m_field.SetPlaceholder(std::move(p)); }
+
+    // 한 프레임 입력(포커스 토글 + 타이핑). 텍스트가 바뀌면 true(목록 다시 필터).
+    bool Update(const platform::Input& in) { return m_field.Update(in).changed; }
+    void Render(platform::IRenderDevice& r) const { m_field.Render(r); }
+
+    const std::string& Text() const { return m_field.Text(); }
+    bool Focused() const     { return m_field.Focused(); }
+    void SetFocused(bool f)  { m_field.SetFocused(f); }
+    void Clear()             { m_field.Clear(); }
+
+private:
+    TextField m_field;
 };
 
 // 세로로 쌓이는 버튼 메뉴. 마우스 호버/클릭과 위/아래/Enter 키를 함께 지원한다.

@@ -19,3 +19,8 @@ vcpkg_installed/
 *_out.txt
 *_err.txt
 *_stderr.txt
+
+# 서버 런타임 산출물 (계정/채팅 DB — 로컬 데이터, 커밋 대상 아님)
+*.db
+*.db-shm
+*.db-wal

@@ -143,6 +143,9 @@
     <ClCompile Include="src\core\Ui.cpp" />
     <ClCompile Include="src\core\InputMap.cpp" />
     <ClCompile Include="src\core\KeySettingOverlay.cpp" />
+    <ClCompile Include="src\core\ChatOverlay.cpp" />
+    <ClCompile Include="src\net\Framing.cpp" />
+    <ClCompile Include="src\net\NetClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\math\Vector2D.h" />
@@ -166,6 +169,14 @@
     <ClInclude Include="src\core\ObjectPalette.h" />
     <ClInclude Include="src\core\InputMap.h" />
     <ClInclude Include="src\core\KeySettingOverlay.h" />
+    <ClInclude Include="src\core\ChatOverlay.h" />
+    <ClInclude Include="src\core\PlayerState.h" />
+    <ClInclude Include="src\core\HostLoop.h" />
+    <ClInclude Include="src\net\Protocol.h" />
+    <ClInclude Include="src\net\Framing.h" />
+    <ClInclude Include="src\net\Socket.h" />
+    <ClInclude Include="src\net\NetClient.h" />
+    <ClInclude Include="src\net\ServerConfig.h" />
     <ClInclude Include="src\editor\MapEditor.h" />
   </ItemGroup>
   <ItemGroup>

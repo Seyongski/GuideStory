@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/NetClient.h"
 #include "platform/IRenderDevice.h"
 #include "platform/Input.h"
 
@@ -11,7 +12,7 @@ inline constexpr float kViewH = 768.0f;
 
 // 장면(화면) 식별자. Update가 반환해 App 호스트 루프가 전환을 수행한다.
 //  - Stay     : 현재 장면 유지
-//  - Login    : 로그인창(추후 아이디/비밀번호/찾기 UI의 home)
+//  - Login    : 로그인창(아이디/비밀번호/가입). 서버 인증을 통과해야 다음으로 간다.
 //  - MainMenu : 메인화면(게임시작/환경설정/로그아웃/게임종료)
 //  - InGame   : 인게임(플레이). 추후 캐릭터 선택창을 그 앞에 둘 자리.
 //  - Quit     : 애플리케이션 종료
@@ -29,6 +30,14 @@ public:
 
     // 백버퍼에 장면을 그린다(Clear 포함, Present는 App이 호출).
     virtual void Render(platform::IRenderDevice& r) = 0;
+
+    // 서버에서 온 사건 하나. App이 매 프레임 큐를 비워 현재 장면에 전달한다(Update 직전).
+    //
+    // [왜 장면이 직접 Poll하지 않는가]
+    //   아무도 꺼내지 않으면 워커 스레드가 넣은 사건이 무한정 쌓인다. 드레인 책임을
+    //   App 한 곳에 두면 "어느 화면에 있든 큐는 비워진다"가 보장된다.
+    //   전환이 필요하면 여기서 상태만 남기고 같은 프레임의 Update가 SceneId를 반환한다.
+    virtual void OnNetEvent(const net::NetEvent& /*ev*/) {}
 };
 
 } // namespace gs::app

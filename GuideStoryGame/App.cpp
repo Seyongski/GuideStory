@@ -4,7 +4,7 @@
 #include "LoginScreen.h"
 #include "MainMenuScreen.h"
 
-#include "platform/FileDialog.h" // AssetsDir: 키 설정 저장 경로 해석
+#include "platform/FileDialog.h" // AssetsDir: 설정 파일 경로 해석
 
 namespace gs::app {
 
@@ -15,6 +15,11 @@ App::App(platform::IWindow& window, platform::IRenderDevice& renderer)
 {
     m_bindings.Load(BindingsPath()); // 저장된 키 설정이 있으면 적용(없으면 기본값 유지)
     m_playerState.Load(PlayerStatePath()); // 마지막 맵 복원(없으면 기본 맵으로 시작)
+
+    // 서버 접속은 워커 스레드가 알아서 한다(재시도 포함). 서버가 꺼져 있어도
+    // 게임은 그대로 실행되고, 로그인 화면이 접속 상태를 보여준다.
+    m_serverCfg.Load(ServerConfigPath());
+    m_net.Start(m_serverCfg.Host(), m_serverCfg.Port());
 }
 
 std::string App::BindingsPath() {
@@ -25,21 +30,30 @@ std::string App::PlayerStatePath() {
     return platform::AssetsDir("config") + "/playerstate.txt";
 }
 
+std::string App::ServerConfigPath() {
+    return platform::AssetsDir("config") + "/server.txt";
+}
+
 std::unique_ptr<Screen> App::MakeScreen(SceneId id) {
     switch (id) {
-        case SceneId::Login:    return std::make_unique<LoginScreen>();
-        case SceneId::MainMenu: return std::make_unique<MainMenuScreen>();
+        case SceneId::Login:    return std::make_unique<LoginScreen>(m_net);
+        case SceneId::MainMenu: return std::make_unique<MainMenuScreen>(m_net);
         case SceneId::InGame: {
             // 시작 맵 = 마지막으로 있던 맵(저장돼 있으면), 없으면 기본 맵.
             const std::string startMap =
                 m_playerState.LastMap().empty() ? "crystalgarden.gsmap" : m_playerState.LastMap();
-            return std::make_unique<GameScreen>(m_bindings, m_playerState, startMap);
+            return std::make_unique<GameScreen>(m_net, m_bindings, m_playerState, startMap);
         }
-        default:                return std::make_unique<LoginScreen>();
+        default:                return std::make_unique<LoginScreen>(m_net);
     }
 }
 
 bool App::Frame(const platform::Input& in, float dt) {
+    // 서버 사건을 현재 장면에 배달한다. 오버레이가 떠 있든 어떤 화면이든 매 프레임 비운다 —
+    // 아무도 꺼내지 않으면 워커가 넣은 사건이 무한정 쌓인다(Screen::OnNetEvent 주석).
+    net::NetEvent ev;
+    while (m_net.Poll(ev)) m_screen->OnNetEvent(ev);
+
     // \ : 키보드 설정 오버레이 토글(어느 화면에서나). 닫기는 변동 시 확인창을 거친다.
     if (in.WasPressed(platform::Key::Backslash)) {
         if (m_keySetting.Visible()) m_keySetting.RequestClose();
@@ -64,6 +78,9 @@ bool App::Frame(const platform::Input& in, float dt) {
     const SceneId next = m_screen->Update(in, dt);
     if (next == SceneId::Quit) return false;            // 게임종료
     if (next != SceneId::Stay) {                         // 장면 전환
+        // 로그인창으로 돌아간다 = 로그아웃이다. 저장된 자격을 폐기해야
+        // 재연결 시 워커가 옛 계정으로 자동 로그인해버리는 일이 없다.
+        if (next == SceneId::Login) m_net.Logout();
         m_screen = MakeScreen(next);
     }
 

@@ -171,16 +171,21 @@ void Dropdown::RenderPopup(platform::IRenderDevice& r) const {
         DrawButton(r, m_items[i].rect, m_items[i].label, i == m_hover || i == m_activeItem, 19.0f);
 }
 
-bool SearchBox::Update(const platform::Input& in) {
+TextField::Result TextField::Update(const platform::Input& in) {
     const math::Vector2D mouse = in.MousePos();
     m_hover = m_rect.Contains(mouse);
     if (in.MousePressed(platform::MouseButton::Left)) m_focused = m_hover; // 칸 안=포커스, 밖=해제
 
-    if (!m_focused) return false;
+    Result result;
+    if (!m_focused) return result;
 
-    bool changed = false;
     const std::string& typed = in.TextInput();
-    if (!typed.empty()) { m_text += typed; changed = true; }
+    // 상한을 넘기면 통째로 무시한다. 잘라 넣으면 UTF-8 한 글자가 반토막 날 수 있다
+    // (TextInput은 글자 단위로 오므로 통짜 판정이 곧 글자 경계 보존이다).
+    if (!typed.empty() && m_text.size() + typed.size() <= m_maxBytes) {
+        m_text += typed;
+        result.changed = true;
+    }
     if (in.WasPressed(platform::Key::Backspace) && !m_text.empty()) {
         // UTF-8 한 글자 삭제: 끝의 후속바이트(10xxxxxx)들을 지우고 선두바이트까지 지운다.
         while (!m_text.empty()) {
@@ -188,16 +193,26 @@ bool SearchBox::Update(const platform::Input& in) {
             m_text.pop_back();
             if ((c & 0xC0) != 0x80) break; // ASCII이거나 선두바이트면 멈춘다
         }
-        changed = true;
+        result.changed = true;
     }
-    return changed;
+    if (in.WasPressed(platform::Key::Enter)) result.submitted = true;
+    return result;
 }
 
-void SearchBox::Render(platform::IRenderDevice& r) const {
+void TextField::Render(platform::IRenderDevice& r) const {
     r.FillRect(m_rect, m_focused ? kTrackDone : kTrackFill);
     r.DrawRect(m_rect, m_focused ? kBtnFillSel : kBtnBorder);
+
     const bool empty = m_text.empty();
-    const std::string shown = empty ? m_placeholder : m_text;
+    // 비밀번호는 내용 대신 가림문자를 같은 글자 수만큼 그린다(길이만 보이고 내용은 안 보인다).
+    std::string shown = empty ? m_placeholder : m_text;
+    if (!empty && m_password) {
+        std::size_t glyphs = 0;
+        for (const char ch : m_text)
+            if ((static_cast<unsigned char>(ch) & 0xC0) != 0x80) ++glyphs; // 선두바이트만 센다
+        shown.assign(glyphs, '*');
+    }
+
     if (!shown.empty()) {
         r.DrawText(shown + (m_focused ? "_" : ""), {m_rect.x + 8.0f, m_rect.y + m_rect.h * 0.5f - 9.0f},
                    18.0f, empty ? kBtnTextOff : kBtnText);
