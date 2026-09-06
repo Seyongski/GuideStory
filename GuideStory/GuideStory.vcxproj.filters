@@ -25,8 +25,20 @@
     <Filter Include="src\net">
       <UniqueIdentifier>{6b1f0e42-3d5a-4c88-9a71-0c2f4b6e51d3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\ai">
+      <UniqueIdentifier>{4f9c2b17-8e60-4d3a-b5c4-7a1e93f2d806}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ai\RemoteShapeGenerator.cpp">
+      <Filter>src\ai</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ai\ShapeToMap.cpp">
+      <Filter>src\ai</Filter>
+    </ClCompile>
+    <ClCompile Include="src\editor\AiShapeTool.cpp">
+      <Filter>src\editor</Filter>
+    </ClCompile>
     <ClCompile Include="src\net\Framing.cpp">
       <Filter>src\net</Filter>
     </ClCompile>
@@ -164,6 +176,36 @@
       <Filter>src\core</Filter>
     </ClInclude>
     <ClInclude Include="src\editor\MapEditor.h">
+      <Filter>src\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\TilePalette.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\AiTypes.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\IShapeGenerator.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\NullShapeGenerator.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\AiProtocol.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\AiConfig.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\Json.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\RemoteShapeGenerator.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ai\ShapeToMap.h">
+      <Filter>src\ai</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\AiShapeTool.h">
       <Filter>src\editor</Filter>
     </ClInclude>
   </ItemGroup>

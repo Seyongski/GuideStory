@@ -2,11 +2,14 @@
 
 #include "EditorScreen.h"
 
+#include "ai/IShapeGenerator.h"
 #include "core/Camera.h"
 #include "core/Ui.h"
+#include "editor/AiShapeTool.h"
 #include "editor/MapEditor.h"
 #include "world/Map.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -63,6 +66,16 @@ private:
     std::vector<int> m_paletteIds;  // 목록 인덱스 → 실제 id(타일 번호) 또는 프리셋 인덱스
     int              m_paletteKind = -1; // 현재 목록 내용: -1=없음, 0=타일, 1=오브젝트(캐시 무효화 키)
     std::string      m_paletteQuery;     // 현재 목록을 만든 검색어(같으면 재구성 생략)
+
+    // --- AI 도형 생성 (P-013, ADR-010) ---
+    // 생성기는 **처음 AI 모드에 들어갈 때** 만든다. 쓰지도 않을 워커 스레드를 에디터
+    // 기동마다 띄울 이유가 없고, 그래야 AI 서버가 없는 환경에서 기동이 느려지지 않는다.
+    void EnsureGenerator();
+
+    bool                                 m_aiMode = false;  // m_editingRect 와 같은 화면 수준 상태
+    std::unique_ptr<ai::IShapeGenerator> m_aiGenerator;     // Remote 또는 Null(설정에서 끔)
+    editor::AiShapeTool                  m_aiTool;
+    ui::Toolbar                          m_aiLabels;        // 우측 패널: 도형 6종
 
     // 사각형 편집 상태. 0=없음, 1=이동범위(빨강), 2=화면(파랑).
     //  - 좌클릭: 하얀 핸들(8개: 모서리+변 중앙)을 잡아 크기 조절(정밀).

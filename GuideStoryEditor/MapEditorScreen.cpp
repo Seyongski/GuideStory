@@ -1,5 +1,8 @@
 #include "MapEditorScreen.h"
 
+#include "ai/AiConfig.h"
+#include "ai/NullShapeGenerator.h"
+#include "ai/RemoteShapeGenerator.h"
 #include "core/ObjectPalette.h"
 #include "core/TilePalette.h"
 #include "core/WorldRenderer.h"
@@ -23,7 +26,7 @@ constexpr float kPanelW = 210.0f;
 constexpr float kPanelX = kViewW - kPanelW; // 우측 패널 좌측 경계
 
 enum EmptyItem { kNew0 = 0, kOpen0, kBack0 };
-enum QuickItem { kqBrowse = 0, kqBg };                   // 단일 버튼(둘러보기/배경)
+enum QuickItem { kqBrowse = 0, kqBg, kqAi };             // 단일 버튼(둘러보기/배경/AI 도형)
 enum GridItem  { kg8 = 0, kg16, kg32 };                  // 격자 드롭다운(스냅 칸 크기 px)
 enum AddItem   { kaTile = 0, kaFoothold, kaSpawn, kaPortal, kaObject }; // 추가 드롭다운
 enum CamItem   { kcView = 0, kcBounds };                 // 카메라 드롭다운(화면/이동범위)
@@ -112,7 +115,8 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     // 상단 1행 좌측: 단일 버튼 [둘러보기][배경] + 드롭다운 [격자▼][추가▼][카메라▼].
     m_quick.Add("둘러보기");
     m_quick.Add("배경");
-    m_quick.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 8, 93
+    m_quick.Add("AI 도형");
+    m_quick.LayoutRow(8.0f, 8.0f, 82.0f, 30.0f, 3.0f); // 8, 93, 178
 
     // 격자: 스냅 칸 크기 8/16/32 px. 고르면 격자가 켜지고 그 간격으로 스냅·표시된다.
     m_gridMenu.SetLabel("격자");
@@ -120,7 +124,7 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     m_gridMenu.Add("16 px");
     m_gridMenu.Add("32 px");
     m_gridMenu.SetItemSize(82.0f, 30.0f, 2.0f);
-    m_gridMenu.LayoutButton(178.0f, 8.0f, 82.0f, 30.0f);
+    m_gridMenu.LayoutButton(263.0f, 8.0f, 82.0f, 30.0f);
 
     m_addMenu.SetLabel("추가");
     m_addMenu.Add("타일");
@@ -129,13 +133,13 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     m_addMenu.Add("포탈");
     m_addMenu.Add("오브젝트");
     m_addMenu.SetItemSize(120.0f, 30.0f, 2.0f);
-    m_addMenu.LayoutButton(263.0f, 8.0f, 86.0f, 30.0f);
+    m_addMenu.LayoutButton(348.0f, 8.0f, 86.0f, 30.0f);
 
     m_camMenu.SetLabel("카메라");
     m_camMenu.Add("화면");      // kcView   → m_editingRect = 2 (파랑)
     m_camMenu.Add("이동범위");  // kcBounds → m_editingRect = 1 (빨강)
     m_camMenu.SetItemSize(120.0f, 30.0f, 2.0f);
-    m_camMenu.LayoutButton(352.0f, 8.0f, 86.0f, 30.0f);
+    m_camMenu.LayoutButton(437.0f, 8.0f, 86.0f, 30.0f);
 
     // 상단 1행 우측: 파일 드롭다운(긴 라벨 → 항목 폭 넓게, 화면 안에 들어오게 좌측 정렬 위치).
     m_fileMenu.SetLabel("파일");
@@ -156,6 +160,30 @@ MapEditorScreen::MapEditorScreen() : m_camera(kViewW, kViewH, 0.0f, kToolStripH)
     m_tileSearch.Layout(kPanelX + 12.0f, kToolStripH + 44.0f, kPanelW - 24.0f, 28.0f);
     m_objSearch.SetPlaceholder("오브젝트 검색…");
     m_objSearch.Layout(kPanelX + 12.0f, kToolStripH + 44.0f, kPanelW - 24.0f, 28.0f);
+
+    // 우측 AI 패널: 도형 6종. 라벨 이름은 ai::kShapeLabels 가 단일 출처다
+    // (여기서 문자열을 다시 적으면 라벨을 추가할 때 한쪽만 고치게 된다).
+    for (int i = 0; i < ai::kShapeLabelCount; ++i)
+        m_aiLabels.Add(ai::ShapeLabelName(static_cast<ai::ShapeLabel>(i)));
+    m_aiLabels.LayoutColumn(kPanelX + 12.0f, kToolStripH + 60.0f, kPanelW - 24.0f, 36.0f, 6.0f);
+}
+
+// AI 생성기를 처음 필요할 때 만든다. assets/config/ai.txt 가 없거나 ENABLED 0 이면
+// NullShapeGenerator 로 떨어진다 — **에디터는 AI 없이도 완전히 동작해야 한다**(ADR-015).
+void MapEditorScreen::EnsureGenerator() {
+    if (m_aiGenerator) return;
+
+    ai::AiConfig cfg;
+    cfg.Load(platform::AssetsDir("config") + "/ai.txt");
+
+    if (cfg.Enabled()) {
+        auto remote = std::make_unique<ai::RemoteShapeGenerator>();
+        remote->Start(cfg.Host(), cfg.Port());
+        m_aiGenerator = std::move(remote);
+    } else {
+        m_aiGenerator = std::make_unique<ai::NullShapeGenerator>();
+    }
+    m_aiTool.Attach(m_aiGenerator.get());
 }
 
 void MapEditorScreen::StartEditing() {
@@ -190,12 +218,14 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
 
     // 현재 모드에 맞는 우측 팔레트 검색 칸(타일/오브젝트). ESC·단축키 차단 판단에 쓴다.
     ui::SearchBox* search = ActiveSearch();
-    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0;
-    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0;
+    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0 && !m_aiMode;
+    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0 && !m_aiMode;
 
     // ESC: 검색 포커스 해제 > (MapEditor가 텍스트 취소로 소비) > 변경 확인 후 런처로 복귀.
     if (in.WasPressed(platform::Key::Escape)) {
         if (search && search->Focused()) { search->SetFocused(false); return EditorScene::Stay; }
+        // AI 미리보기가 떠 있으면 ESC는 그것부터 취소한다(화면을 떠나기 전에).
+        if (m_aiMode && m_aiTool.HasPreview()) { m_aiTool.Reset(); return EditorScene::Stay; }
         if (!typing) return ConfirmLeave();
     }
 
@@ -232,17 +262,17 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
             default: break;
         }
         switch (rAdd.item) { // 추가(배치 모드) — 선택 시 카메라 편집 해제
-            case kaTile:     m_editingRect = 0; m_editor->SetMode(editor::EditMode::Tile);     return EditorScene::Stay;
-            case kaFoothold: m_editingRect = 0; m_editor->SetMode(editor::EditMode::Foothold); return EditorScene::Stay;
-            case kaSpawn:    m_editingRect = 0; m_editor->SetMode(editor::EditMode::Spawn);    return EditorScene::Stay;
-            case kaPortal:   m_editingRect = 0; m_editor->SetMode(editor::EditMode::Portal);   return EditorScene::Stay;
-            case kaObject:   m_editingRect = 0; m_editor->SetMode(editor::EditMode::Object);   return EditorScene::Stay;
+            case kaTile:     m_editingRect = 0; m_aiMode = false; m_aiTool.Reset(); m_editor->SetMode(editor::EditMode::Tile);     return EditorScene::Stay;
+            case kaFoothold: m_editingRect = 0; m_aiMode = false; m_aiTool.Reset(); m_editor->SetMode(editor::EditMode::Foothold); return EditorScene::Stay;
+            case kaSpawn:    m_editingRect = 0; m_aiMode = false; m_aiTool.Reset(); m_editor->SetMode(editor::EditMode::Spawn);    return EditorScene::Stay;
+            case kaPortal:   m_editingRect = 0; m_aiMode = false; m_aiTool.Reset(); m_editor->SetMode(editor::EditMode::Portal);   return EditorScene::Stay;
+            case kaObject:   m_editingRect = 0; m_aiMode = false; m_aiTool.Reset(); m_editor->SetMode(editor::EditMode::Object);   return EditorScene::Stay;
             default: break;
         }
         switch (rCam.item) { // 카메라(사각형 편집) — 배치 모드는 둘러보기로 내려 캔버스 클릭 누수 방지
-            case kcView:   m_editingRect = (m_editingRect == 2) ? 0 : 2;
+            case kcView:   m_editingRect = (m_editingRect == 2) ? 0 : 2; m_aiMode = false; m_aiTool.Reset();
                            m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
-            case kcBounds: m_editingRect = (m_editingRect == 1) ? 0 : 1;
+            case kcBounds: m_editingRect = (m_editingRect == 1) ? 0 : 1; m_aiMode = false; m_aiTool.Reset();
                            m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
             default: break;
         }
@@ -258,7 +288,17 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
             default: break;
         }
         switch (m_quick.Update(in)) { // 단일 버튼
-            case kqBrowse: m_editingRect = 0; m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
+            case kqBrowse: m_editingRect = 0; m_aiMode = false; m_aiTool.Reset();
+                           m_editor->SetMode(editor::EditMode::Browse); return EditorScene::Stay;
+            case kqAi:
+                // 카메라 사각형 편집과 마찬가지로 화면 수준 모드다 — 캔버스 클릭이 새지 않도록
+                // MapEditor 는 둘러보기로 내린다.
+                m_aiMode = !m_aiMode;
+                m_editingRect = 0;
+                m_editor->SetMode(editor::EditMode::Browse);
+                if (m_aiMode) { EnsureGenerator(); m_aiTool.SetTile(m_editor->CurrentTile()); }
+                else          { m_aiTool.Reset(); }
+                return EditorScene::Stay;
             case kqBg: {
                 const auto p = platform::OpenFileDialog("배경 이미지", "PNG 이미지", "*.png",
                                                         platform::AssetsDir("backgrounds"));
@@ -286,12 +326,21 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
         }
     }
 
+    // --- 우측 AI 패널: 도형 라벨 선택 ---
+    if (m_aiMode && !typing && !anyMenuOpen && !menuClickConsumed) {
+        const int pick = m_aiLabels.Update(in);
+        if (pick >= 0 && pick < ai::kShapeLabelCount) {
+            m_aiTool.SetLabel(static_cast<ai::ShapeLabel>(pick));
+            return EditorScene::Stay;
+        }
+    }
+
     // 검색 칸에 포커스가 있으면 타이핑 중 — 캔버스 편집/단축키/패닝을 모두 멈춘다(렌더는 계속).
     if (search && search->Focused()) return EditorScene::Stay;
 
     // 포인터가 상단 스트립/열린 드롭다운/우측 팔레트 위면 캔버스 편집을 막는다(클릭 누수 방지).
     bool overUi = m.y < kToolStripH;
-    if ((tilePalette || objPalette) && m.x >= kPanelX) overUi = true;
+    if ((tilePalette || objPalette || m_aiMode) && m.x >= kPanelX) overUi = true;
     if (anyMenuOpen || menuClickConsumed) overUi = true;
     if (m_zoomBar.Dragging()) overUi = true; // 슬라이더 드래그 중 보호
 
@@ -299,6 +348,15 @@ EditorScene MapEditorScreen::Update(const platform::Input& in, float dt) {
     //  - 좌클릭: 하얀 핸들을 잡아 크기 조절(정밀). 핸들이 아닌 곳을 잡으면 아무 일도 안 한다.
     //  - 우드래그: 처음부터 새 사각형을 그린다(우클릭만 = 0크기 → 해제).
     // 화면(파랑)은 게임 창과 같은 16:9로 폭에 맞춰 높이를 정한다(줌이 폭으로 결정되므로).
+    if (m_aiMode) {
+        // AI 도구가 캔버스 드래그(영역 선택)와 Enter/R/Esc 를 가져간다.
+        // MapEditor 는 마우스 편집 없이 키 패닝만 유지한다(카메라 사각형 편집과 같은 처리).
+        m_aiTool.SetTile(m_editor->CurrentTile());
+        m_aiTool.Update(in, m_camera, m_map, !overUi);
+        m_editor->Update(in, m_camera, dt, false);
+        return EditorScene::Stay;
+    }
+
     if (m_editingRect != 0) {
         const bool isRed = (m_editingRect == 1);
         const bool has   = isRed ? m_map.HasPlayerBounds() : m_map.HasCameraView();
@@ -362,6 +420,7 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
 
     core::RenderWorld(r, m_camera, m_map); // 배경 → 타일 → 오브젝트 → 풋홀드/포탈
     m_editor->Render(r, m_camera);          // 격자/고스트/마커/상태 오버레이
+    if (m_aiMode) m_aiTool.Render(r, m_camera, m_map); // AI 선택 사각형 + 고스트 + 예상 풋홀드
 
     // 이동범위(빨강) + 게임 화면(파랑) 가이드. 설정돼 있으면 항상 표시.
     if (m_map.HasPlayerBounds())
@@ -387,8 +446,31 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
     }
 
     // 우측 팔레트 패널(타일/오브젝트 모드일 때). 검색 + 필터된 종류 목록. 캔버스 영역(스트립 아래)에.
-    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0;
-    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0;
+    const bool tilePalette = m_editor->Mode() == editor::EditMode::Tile   && m_editingRect == 0 && !m_aiMode;
+    const bool objPalette  = m_editor->Mode() == editor::EditMode::Object && m_editingRect == 0 && !m_aiMode;
+    if (m_aiMode) {
+        r.FillRect({kPanelX, kToolStripH, kPanelW, kViewH}, kPanel);
+        const float cx = kPanelX + kPanelW * 0.5f;
+        ui::DrawCenteredText(r, "AI 도형", cx, kToolStripH + 22.0f, 24.0f, kTitle);
+
+        m_aiLabels.SetActive(static_cast<int>(m_aiTool.Label()));
+        m_aiLabels.Render(r);
+
+        // 생성기 상태 — 어느 경로로 만들어졌는지 화면에서 바로 보여야 스텁/실모델을 헷갈리지 않는다.
+        const float infoY = kToolStripH + 60.0f + ai::kShapeLabelCount * 42.0f + 12.0f;
+        const char* gname = m_aiGenerator ? m_aiGenerator->Name() : "none";
+        ui::DrawCenteredText(r, gname, cx, infoY, 14.0f, kHint);
+        if (m_aiTool.LastRoundTripMs() > 0.0) {
+            const int rt = static_cast<int>(m_aiTool.LastRoundTripMs() + 0.5);
+            ui::DrawCenteredText(r, "왕복 " + std::to_string(rt) + " ms",
+                                 cx, infoY + 20.0f, 14.0f, kHint);
+        }
+
+        // 상태 한 줄은 캔버스 하단 가운데 — 시선이 도형에 있을 때 같이 읽힌다.
+        ui::DrawCenteredText(r, m_aiTool.Status(), kViewW * 0.5f, kWinH - 48.0f, 17.0f, kTitle);
+        ui::DrawCenteredText(r, "드래그로 영역 선택 → Enter 확정 / R 재생성 / Esc 취소",
+                             kViewW * 0.5f, kWinH - 22.0f, 15.0f, kHint);
+    }
     if (tilePalette || objPalette) {
         r.FillRect({kPanelX, kToolStripH, kPanelW, kViewH}, kPanel);
         const float cx = kPanelX + kPanelW * 0.5f;
@@ -414,14 +496,16 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
     r.FillRect({0.0f, 0.0f, kViewW, kToolStripH}, kBar);
 
     // 1행: 단일 버튼 + 드롭다운 헤더. 현재 상태에 따라 강조(active).
-    m_quick.SetActive((m_editor->Mode() == editor::EditMode::Browse && m_editingRect == 0) ? kqBrowse : -1);
+    m_quick.SetActive(m_aiMode ? kqAi
+                      : (m_editor->Mode() == editor::EditMode::Browse && m_editingRect == 0) ? kqBrowse
+                      : -1);
     m_quick.Render(r);
     // 격자: 헤더에 현재 칸 크기를 보여주고(예 "격자 16"), 켜져 있으면 헤더와 해당 칸 항목을 밝게 강조한다.
     const int gstep = m_editor->GridStep();
     m_gridMenu.SetLabel("격자 " + std::to_string(gstep));
     m_gridMenu.SetActive(m_editor->GridOn());
     m_gridMenu.SetActiveItem(m_editor->GridOn() ? (gstep == 8 ? kg8 : gstep == 16 ? kg16 : kg32) : -1);
-    m_addMenu.SetActive(m_editingRect == 0 && IsPlacement(m_editor->Mode()));
+    m_addMenu.SetActive(!m_aiMode && m_editingRect == 0 && IsPlacement(m_editor->Mode()));
     m_camMenu.SetActive(m_editingRect != 0);
     m_gridMenu.RenderHeader(r);
     m_addMenu.RenderHeader(r);

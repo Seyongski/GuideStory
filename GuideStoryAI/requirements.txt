@@ -1,0 +1,10 @@
+# GuideStoryAI 학습·추론 의존성. 검증된 조합(2026-08-30, Windows x64, Python 3.12.10).
+#
+# torch는 CPU 휠을 별도 인덱스에서 받는다 — 이 파일만으로는 설치되지 않는다:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0+cpu
+#
+# ⚠️ G3(P-017)에서 받을 **libtorch 버전을 torch와 일치**시켜야 TorchScript 로드가 깨지지 않는다.
+#    현재 검증된 버전: torch 2.13.0+cpu  → libtorch 2.13.0 (CPU, Release/Debug 각각)
+numpy==2.5.2
+matplotlib==3.11.1   # 평가 리포트 그림(라벨 임베딩 보간, 혼동행렬). Agg 백엔드로 파일 저장
+tqdm==4.70.0

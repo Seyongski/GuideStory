@@ -17,9 +17,10 @@ bool SendAll(SocketHandle sock, const char* data, int32_t len) {
 
 std::vector<char> BuildPacket(Opcode op,
                               const void* bodyA, uint32_t sizeA,
-                              const void* bodyB, uint32_t sizeB) {
+                              const void* bodyB, uint32_t sizeB,
+                              uint32_t maxBodySize) {
     const uint32_t total = sizeA + sizeB;
-    if (total > kMaxBodySize) return {}; // 호출측이 빈 버퍼를 보고 실패를 안다
+    if (total > maxBodySize) return {}; // 호출측이 빈 버퍼를 보고 실패를 안다
 
     std::vector<char> buffer(sizeof(PacketHeader) + total);
 
@@ -47,7 +48,8 @@ bool SendPacket(SocketHandle sock, Opcode op, const void* body, uint32_t bodySiz
 
 FrameResult TryExtractPacket(std::vector<char>& buffer,
                              PacketHeader& outHeader,
-                             std::vector<char>& outBody) {
+                             std::vector<char>& outBody,
+                             uint32_t maxBodySize) {
     // 1. 헤더조차 다 안 왔으면 더 기다린다.
     if (buffer.size() < sizeof(PacketHeader)) return FrameResult::NeedMore;
 
@@ -57,7 +59,7 @@ FrameResult TryExtractPacket(std::vector<char>& buffer,
     // 2. 선언된 길이를 신뢰하기 전에 상한을 검사한다.
     //    이 검사가 없으면 악성 클라가 BodySize 에 큰 값을 넣어 메모리를 폭발시킬 수 있다.
     //    (RELIABILITY.md §2.2 — 비정상 패킷은 거부·로깅한다.)
-    if (header.BodySize > kMaxBodySize) return FrameResult::Malformed;
+    if (header.BodySize > maxBodySize) return FrameResult::Malformed;
 
     // 3. 바디가 덜 왔으면 더 기다린다. 지금까지 받은 건 버리지 않는다.
     const size_t total = sizeof(PacketHeader) + header.BodySize;

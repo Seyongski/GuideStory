@@ -146,6 +146,9 @@
     <ClCompile Include="src\core\ChatOverlay.cpp" />
     <ClCompile Include="src\net\Framing.cpp" />
     <ClCompile Include="src\net\NetClient.cpp" />
+    <ClCompile Include="src\ai\RemoteShapeGenerator.cpp" />
+    <ClCompile Include="src\ai\ShapeToMap.cpp" />
+    <ClCompile Include="src\editor\AiShapeTool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\math\Vector2D.h" />
@@ -167,6 +170,7 @@
     <ClInclude Include="src\core\WorldRenderer.h" />
     <ClInclude Include="src\core\Ui.h" />
     <ClInclude Include="src\core\ObjectPalette.h" />
+    <ClInclude Include="src\core\TilePalette.h" />
     <ClInclude Include="src\core\InputMap.h" />
     <ClInclude Include="src\core\KeySettingOverlay.h" />
     <ClInclude Include="src\core\ChatOverlay.h" />
@@ -178,6 +182,15 @@
     <ClInclude Include="src\net\NetClient.h" />
     <ClInclude Include="src\net\ServerConfig.h" />
     <ClInclude Include="src\editor\MapEditor.h" />
+    <ClInclude Include="src\ai\AiTypes.h" />
+    <ClInclude Include="src\ai\IShapeGenerator.h" />
+    <ClInclude Include="src\ai\NullShapeGenerator.h" />
+    <ClInclude Include="src\ai\AiProtocol.h" />
+    <ClInclude Include="src\ai\AiConfig.h" />
+    <ClInclude Include="src\ai\Json.h" />
+    <ClInclude Include="src\ai\RemoteShapeGenerator.h" />
+    <ClInclude Include="src\ai\ShapeToMap.h" />
+    <ClInclude Include="src\editor\AiShapeTool.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />

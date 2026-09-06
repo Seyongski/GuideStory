@@ -24,3 +24,12 @@ vcpkg_installed/
 *.db
 *.db-shm
 *.db-wal
+
+# AI 서브프로젝트 (GuideStoryAI) — requirements.txt로 재현 가능하므로 환경은 커밋 제외.
+# 데이터·체크포인트도 제외하되, models/*.pt(TorchScript, 수 MB)는 커밋한다.
+# 그게 없으면 C++ libtorch 통합(P-017)을 아무도 재현할 수 없다.
+GuideStoryAI/.venv/
+GuideStoryAI/data/
+GuideStoryAI/runs/
+__pycache__/
+*.pyc

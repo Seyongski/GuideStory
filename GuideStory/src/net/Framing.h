@@ -37,14 +37,20 @@ bool SendPacket2(SocketHandle sock, Opcode op,
 // 워커 스레드의 송신 큐에 넣을 때 쓴다(게임 스레드는 소켓을 만지지 않는다).
 std::vector<char> BuildPacket(Opcode op,
                               const void* bodyA, uint32_t sizeA,
-                              const void* bodyB = nullptr, uint32_t sizeB = 0);
+                              const void* bodyB = nullptr, uint32_t sizeB = 0,
+                              uint32_t maxBodySize = kMaxBodySize);
 
 // buffer 앞쪽에서 완성된 패킷 하나를 꺼내 outHeader / outBody 에 담고,
 // 꺼낸 만큼 buffer 앞부분을 지운다. 뒤에 남은 바이트는 다음 패킷의 일부이므로 보존한다.
 // Ok 가 반환되는 동안 반복 호출해서 밀린 패킷을 전부 처리해야 한다.
+//
+// maxBodySize 는 채널마다 다르다. 계정/채팅은 기본값 kMaxBodySize(4KiB, 채팅 한 줄 기준)를
+// 쓰고, AI 채널은 ai::kAiMaxBodySize(1MiB)를 넘긴다 — 32x32 격자 JSON이 4KiB를 넘기 때문이다.
+// **상한을 검사한다는 원칙은 두 채널이 같고 값만 다르다.** 값을 늘리려고 검사를 빼지 않는다.
 FrameResult TryExtractPacket(std::vector<char>& buffer,
                              PacketHeader& outHeader,
-                             std::vector<char>& outBody);
+                             std::vector<char>& outBody,
+                             uint32_t maxBodySize = kMaxBodySize);
 
 // 고정 길이 char 배열에 문자열을 담는다. 항상 널 종료를 보장한다(넘치면 자른다).
 void CopyFixedString(char* dest, size_t destSize, const std::string& src);

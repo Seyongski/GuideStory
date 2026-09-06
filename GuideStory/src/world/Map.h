@@ -72,6 +72,18 @@ public:
     math::Vector2D BackgroundSize() const           { return m_bgSize; }
     void           SetBackgroundSize(math::Vector2D s) { m_bgSize = s; }
 
+    // 이 맵의 라벨(공백 없는 토큰, 예: "circle"/"heart"/"ice_cave"). 비어 있으면 미분류.
+    // AI 학습 데이터의 정답이 이 값이다 — 손으로 그린 맵에도 붙인다(ADR-012).
+    // 게임 런타임은 이 값을 쓰지 않는다. 에디터와 학습 파이프라인만의 메타데이터다.
+    const std::string& Concept() const          { return m_concept; }
+    void               SetConcept(std::string c) { m_concept = std::move(c); }
+
+    // AI가 생성한 맵의 출처: "<모델> <라벨> <seed> <리비전>". 비어 있으면 사람이 만든 맵.
+    // **로드 시 보존해서 다시 저장한다** — 에디터로 열었다 저장했다고 출처가 사라지면
+    // "같은 seed로 다시 뽑을 수 있다"는 재현성 주장이 그 순간 깨진다.
+    const std::string& AiGen() const           { return m_aigen; }
+    void               SetAiGen(std::string v) { m_aigen = std::move(v); }
+
 
     // 월드 경계(픽셀): 카메라/플레이어 클램프와 경계 렌더에 쓴다.
     //  - 배경이 있고 크기를 알면 그 배경 사각형이 권위다(타일 격자가 배경보다 커도 배경 밖
@@ -110,6 +122,8 @@ private:
     std::vector<MapMob>    m_mobs;                 // 배치된 몬스터 스프라이트
     std::string            m_background;           // 배경 PNG 파일명(없으면 빈 문자열)
     math::Vector2D         m_bgSize{};             // 배경 원본 픽셀 크기(0 = 미상)
+    std::string            m_concept;              // 라벨(AI 학습 데이터의 정답). 빈 문자열 = 미분류
+    std::string            m_aigen;                // AI 생성 출처(모델/라벨/seed/리비전). 빈 문자열 = 사람이 만듦
 };
 
 } // namespace gs::world
