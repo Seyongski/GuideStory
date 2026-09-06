@@ -22,6 +22,8 @@ constexpr platform::Color kTitle   {236, 224, 150, 255};
 constexpr platform::Color kHint    {150, 160, 180, 255};
 constexpr platform::Color kBar     {20, 24, 38, 220}; // 상단 툴바 배경
 constexpr platform::Color kPanel   {26, 30, 46, 240}; // 우측 팔레트 패널 배경
+constexpr platform::Color kOk      {120, 220, 140, 255}; // AI 연결됨
+constexpr platform::Color kWarn    {235, 180,  90, 255}; // AI 서버 꺼짐
 constexpr float kPanelW = 210.0f;
 constexpr float kPanelX = kViewW - kPanelW; // 우측 패널 좌측 경계
 
@@ -456,14 +458,28 @@ void MapEditorScreen::Render(platform::IRenderDevice& r) {
         m_aiLabels.SetActive(static_cast<int>(m_aiTool.Label()));
         m_aiLabels.Render(r);
 
-        // 생성기 상태 — 어느 경로로 만들어졌는지 화면에서 바로 보여야 스텁/실모델을 헷갈리지 않는다.
+        // 생성기 상태 — 어느 경로인지, **지금 붙어 있는지**를 화면에서 바로 보여준다.
+        // 생성을 시도해야만 "서버 꺼짐"을 알 수 있으면 늦다(처음 쓸 때 그대로 막힌다).
         const float infoY = kToolStripH + 60.0f + ai::kShapeLabelCount * 42.0f + 12.0f;
+        const bool  ready = m_aiGenerator && m_aiGenerator->Ready();
         const char* gname = m_aiGenerator ? m_aiGenerator->Name() : "none";
-        ui::DrawCenteredText(r, gname, cx, infoY, 14.0f, kHint);
-        if (m_aiTool.LastRoundTripMs() > 0.0) {
-            const int rt = static_cast<int>(m_aiTool.LastRoundTripMs() + 0.5);
-            ui::DrawCenteredText(r, "왕복 " + std::to_string(rt) + " ms",
-                                 cx, infoY + 20.0f, 14.0f, kHint);
+
+        ui::DrawCenteredText(r, gname, cx, infoY, 13.0f, kHint);
+        ui::DrawCenteredText(r, ready ? "● 연결됨" : "● 서버 꺼짐",
+                             cx, infoY + 20.0f, 15.0f, ready ? kOk : kWarn);
+
+        if (ready) {
+            if (m_aiTool.LastRoundTripMs() > 0.0) {
+                const int rt = static_cast<int>(m_aiTool.LastRoundTripMs() + 0.5);
+                ui::DrawCenteredText(r, "왕복 " + std::to_string(rt) + " ms",
+                                     cx, infoY + 42.0f, 13.0f, kHint);
+            }
+        } else {
+            // 무엇을 해야 하는지 화면에서 알려준다 — 문서를 찾아보게 만들지 않는다.
+            ui::DrawCenteredText(r, "추론 서버를 먼저 실행하세요", cx, infoY + 46.0f, 14.0f, kHint);
+            ui::DrawCenteredText(r, "GuideStoryAI 폴더에서", cx, infoY + 68.0f, 12.0f, kHint);
+            ui::DrawCenteredText(r, "python serve/ai_server.py --stub", cx, infoY + 86.0f, 12.0f, kHint);
+            ui::DrawCenteredText(r, "(켜면 2초 안에 자동 연결)", cx, infoY + 108.0f, 12.0f, kHint);
         }
 
         // 상태 한 줄은 캔버스 하단 가운데 — 시선이 도형에 있을 때 같이 읽힌다.

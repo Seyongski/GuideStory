@@ -19,6 +19,13 @@ public:
     // **AI가 없어도 에디터는 완전히 동작해야 한다** — AI는 부가 기능이다(ADR-015).
     virtual bool Available() const = 0;
 
+    // **지금 당장** 요청을 받을 수 있는가. Available()이 "구성돼 있는가"라면 이건 "붙어 있는가"다.
+    //   Null     : 언제나 false
+    //   Remote   : 소켓이 연결돼 있는가 (서버를 껐다 켜면 값이 바뀐다)
+    //   Torch    : 모델이 로드됐는가
+    // 에디터는 이 값으로 "서버 꺼짐" 안내를 띄운다 — 생성을 시도해야만 알 수 있으면 늦다.
+    virtual bool Ready() const { return Available(); }
+
     // 사람이 읽는 식별자("none", "remote 127.0.0.1:7788", "libtorch cvae_v1").
     // 상태 표시줄과 로그에 쓴다. 어느 경로로 생성됐는지 화면에서 바로 보여야
     // 스텁/실모델을 헷갈리지 않는다.

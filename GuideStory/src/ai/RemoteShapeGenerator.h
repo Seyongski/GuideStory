@@ -49,6 +49,7 @@ public:
 
     // --- IShapeGenerator ---
     bool        Available() const override { return m_running.load(std::memory_order_relaxed); }
+    bool        Ready()     const override { return m_connected.load(std::memory_order_relaxed); }
     const char* Name()      const override { return m_name.c_str(); }
     void        Request(const ShapeRequest& req) override;
     bool        Poll(ShapeResult& out) override;

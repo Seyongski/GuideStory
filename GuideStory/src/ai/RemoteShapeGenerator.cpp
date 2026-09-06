@@ -17,6 +17,7 @@ namespace {
 constexpr int kConnectTimeoutMs = 1500;  // 서버가 없을 때 이만큼만 기다린다
 constexpr int kRecvTimeoutMs    = 200;   // 종료 요청에 대한 반응 속도이기도 하다
 constexpr int kReplyTimeoutMs   = 5000;  // 응답을 이보다 오래 기다리지 않는다
+constexpr int kIdlePollMs       = 2000;  // 유휴 시 연결 상태를 다시 확인하는 주기
 
 using Clock = std::chrono::steady_clock;
 
@@ -228,93 +229,113 @@ void RemoteShapeGenerator::Worker() {
         m_connected.store(false, std::memory_order_relaxed);
     };
 
+    auto ensureConnected = [&]() {
+        if (sock != net::kInvalidSocket) return true;
+        sock = ConnectWithTimeout(m_host, m_port, kConnectTimeoutMs);
+        m_connected.store(sock != net::kInvalidSocket, std::memory_order_relaxed);
+        return sock != net::kInvalidSocket;
+    };
+
+    // 한 번의 송수신 시도. lostConnection=true 면 소켓이 죽은 것이라 재접속 후 재시도할 값어치가 있다.
+    auto attempt = [&](const ShapeRequest& req, bool& lostConnection) -> ShapeResult {
+        lostConnection = false;
+
+        const std::string bodyText = BuildRequestJson(req);
+        const std::vector<char> packet = net::BuildPacket(
+            static_cast<net::Opcode>(AiOpcode::GenerateReq),
+            bodyText.data(), static_cast<uint32_t>(bodyText.size()),
+            nullptr, 0, kAiMaxBodySize);
+
+        if (packet.empty()) return MakeError("요청이 너무 큽니다");
+        if (!net::SendAll(sock, packet.data(), static_cast<int32_t>(packet.size()))) {
+            dropConnection();
+            lostConnection = true;
+            return MakeError("요청 전송 실패 (연결이 끊겼습니다)");
+        }
+
+        // 응답 한 프레임을 기다린다. recv 타임아웃마다 깨어나 종료 요청을 확인한다.
+        const auto deadline = Clock::now() + std::chrono::milliseconds(kReplyTimeoutMs);
+        while (!m_stop.load(std::memory_order_relaxed)) {
+            net::PacketHeader header{};
+            std::vector<char> respBody;
+            const net::FrameResult fr =
+                net::TryExtractPacket(rxBuffer, header, respBody, kAiMaxBodySize);
+
+            if (fr == net::FrameResult::Malformed) {
+                dropConnection();
+                lostConnection = true;
+                return MakeError("응답 프레임이 규약을 벗어났습니다");
+            }
+            if (fr == net::FrameResult::Ok) {
+                if (header.Opcode != static_cast<uint16_t>(AiOpcode::GenerateAck))
+                    return MakeError("예상 밖 옵코드: " + std::to_string(header.Opcode));
+                return ParseResponse(respBody, req);
+            }
+            if (Clock::now() >= deadline) {
+                dropConnection();          // 스트림 위치를 믿을 수 없다
+                lostConnection = true;
+                return MakeError("응답 시간 초과");
+            }
+
+            char chunk[8192];
+            const int received = ::recv(sock, chunk, static_cast<int>(sizeof(chunk)), 0);
+            if (received > 0) {
+                rxBuffer.insert(rxBuffer.end(), chunk, chunk + received);
+            } else if (received == 0) {
+                dropConnection();
+                lostConnection = true;
+                return MakeError("서버가 연결을 닫았습니다");
+            } else if (!net::IsRecvTimeout(net::LastNetError())) {
+                dropConnection();
+                lostConnection = true;
+                return MakeError("수신 오류 (연결이 끊겼습니다)");
+            }
+            // 타임아웃이면 한 바퀴 더 — 종료 플래그를 확인하려는 것이다.
+        }
+        return MakeError("종료 중 요청이 취소되었습니다");
+    };
+
+    ensureConnected();   // 기동 직후 한 번 붙어본다 — 패널이 처음부터 정확한 상태를 보여준다
+
     while (!m_stop.load(std::memory_order_relaxed)) {
-        Job job;
+        Job  job;
+        bool haveJob = false;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [&] { return m_hasJob || m_stop.load(std::memory_order_relaxed); });
+            // 요청이 없어도 주기적으로 깨어난다. **서버를 나중에 켜도 패널이 살아나야** 하기 때문이다
+            // (에디터를 먼저 열고 서버를 나중에 띄우는 순서가 오히려 흔하다).
+            m_cv.wait_for(lock, std::chrono::milliseconds(kIdlePollMs),
+                          [&] { return m_hasJob || m_stop.load(std::memory_order_relaxed); });
             if (m_stop.load(std::memory_order_relaxed)) break;
-            job        = m_job;
-            m_hasJob   = false;
-            m_inFlight = true;
+            if (m_hasJob) {
+                job        = m_job;
+                m_hasJob   = false;
+                m_inFlight = true;
+                haveJob    = true;
+            }
         }
 
-        ShapeResult result;
+        if (!haveJob) {
+            ensureConnected();   // 유휴 틱: 연결 상태만 갱신한다
+            continue;
+        }
+
         const auto started = Clock::now();
+        ShapeResult result;
 
-        // 접속이 없으면(또는 끊겼으면) 지금 붙는다. 서버 재시작을 자동으로 넘긴다.
-        if (sock == net::kInvalidSocket) {
-            sock = ConnectWithTimeout(m_host, m_port, kConnectTimeoutMs);
-            m_connected.store(sock != net::kInvalidSocket, std::memory_order_relaxed);
-        }
-
-        if (sock == net::kInvalidSocket) {
+        if (!ensureConnected()) {
             result = MakeError("AI 서버에 연결할 수 없습니다 (" + m_host + ":" +
                                std::to_string(m_port) + ")");
         } else {
-            const std::string bodyText = BuildRequestJson(job.req);
-            const std::vector<char> packet = net::BuildPacket(
-                static_cast<net::Opcode>(AiOpcode::GenerateReq),
-                bodyText.data(), static_cast<uint32_t>(bodyText.size()),
-                nullptr, 0, kAiMaxBodySize);
+            bool lost = false;
+            result = attempt(job.req, lost);
 
-            if (packet.empty() ||
-                !net::SendAll(sock, packet.data(), static_cast<int32_t>(packet.size()))) {
-                dropConnection();
-                result = MakeError("요청 전송 실패 (연결이 끊겼습니다)");
-            } else {
-                // 응답 한 프레임을 기다린다. recv 타임아웃마다 깨어나 종료 요청을 확인한다.
-                bool got = false;
-                const auto deadline = Clock::now() + std::chrono::milliseconds(kReplyTimeoutMs);
-
-                while (!m_stop.load(std::memory_order_relaxed)) {
-                    net::PacketHeader header{};
-                    std::vector<char> respBody;
-                    const net::FrameResult fr =
-                        net::TryExtractPacket(rxBuffer, header, respBody, kAiMaxBodySize);
-
-                    if (fr == net::FrameResult::Malformed) {
-                        dropConnection();
-                        result = MakeError("응답 프레임이 규약을 벗어났습니다");
-                        got = true;
-                        break;
-                    }
-                    if (fr == net::FrameResult::Ok) {
-                        if (header.Opcode != static_cast<uint16_t>(AiOpcode::GenerateAck)) {
-                            result = MakeError("예상 밖 옵코드: " + std::to_string(header.Opcode));
-                        } else {
-                            result = ParseResponse(respBody, job.req);
-                        }
-                        got = true;
-                        break;
-                    }
-
-                    if (Clock::now() >= deadline) {
-                        dropConnection();   // 스트림 위치를 믿을 수 없다
-                        result = MakeError("응답 시간 초과");
-                        got = true;
-                        break;
-                    }
-
-                    char chunk[8192];
-                    const int received = ::recv(sock, chunk, static_cast<int>(sizeof(chunk)), 0);
-                    if (received > 0) {
-                        rxBuffer.insert(rxBuffer.end(), chunk, chunk + received);
-                    } else if (received == 0) {
-                        dropConnection();
-                        result = MakeError("서버가 연결을 닫았습니다");
-                        got = true;
-                        break;
-                    } else if (!net::IsRecvTimeout(net::LastNetError())) {
-                        dropConnection();
-                        result = MakeError("수신 오류 (연결이 끊겼습니다)");
-                        got = true;
-                        break;
-                    }
-                    // 타임아웃이면 그냥 한 바퀴 더 — 종료 플래그를 확인하려는 것이다.
-                }
-
-                if (!got) result = MakeError("종료 중 요청이 취소되었습니다");
+            // 유휴 상태로 오래 두면 서버가 먼저 연결을 닫는다(서버 타임아웃 300초).
+            // 그때 첫 요청만 실패하고 사용자가 다시 눌러야 하는 건 버그처럼 보인다 —
+            // 연결이 죽어서 실패한 경우에 한해 **한 번만** 재접속해서 다시 보낸다.
+            if (lost && !m_stop.load(std::memory_order_relaxed) && ensureConnected()) {
+                bool lostAgain = false;
+                result = attempt(job.req, lostAgain);
             }
         }
 

@@ -1,2 +1,2 @@
 GSPLAYER 1
-LASTMAP crystalgarden.gsmap
+LASTMAP field01.gsmap
